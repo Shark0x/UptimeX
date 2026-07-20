@@ -1,0 +1,474 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-deep-950 text-slate-200 font-body antialiased;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(220, 25, 40, 0.13), transparent),
+    radial-gradient(ellipse 45% 35% at 92% 0%, rgba(143, 15, 29, 0.09), transparent),
+    linear-gradient(rgba(255, 43, 58, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 43, 58, 0.028) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(255, 43, 58, 0.35);
+  color: #f5f5f7;
+}
+
+/* ---------- superfícies ---------- */
+
+.glass-panel {
+  @apply relative bg-gradient-to-br from-deep-900/80 to-deep-800/50 backdrop-blur-xl border border-white/[0.07] rounded-2xl shadow-glass;
+}
+
+.glass-panel-interactive {
+  @apply glass-panel transition-all duration-200;
+}
+.glass-panel-interactive:hover {
+  @apply border-signal-500/40 shadow-glow-signal -translate-y-0.5;
+}
+
+/* Cantoneiras HUD — assinatura visual dos elementos de destaque */
+.hud-corners {
+  position: relative;
+}
+.hud-corners::before,
+.hud-corners::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(255, 43, 58, 0.55);
+  border-style: solid;
+  pointer-events: none;
+  transition: border-color 0.2s;
+}
+.hud-corners::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1.5px 0 0 1.5px;
+  border-top-left-radius: 6px;
+}
+.hud-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1.5px 1.5px 0;
+  border-bottom-right-radius: 6px;
+}
+
+/* ---------- status ---------- */
+
+.status-dot-online {
+  @apply bg-online;
+  box-shadow: 0 0 10px rgba(47, 215, 113, 0.8);
+}
+.status-dot-offline {
+  @apply bg-offline;
+  box-shadow: 0 0 10px rgba(255, 43, 58, 0.75);
+}
+.status-dot-warn {
+  @apply bg-warn;
+  box-shadow: 0 0 10px rgba(255, 178, 36, 0.7);
+}
+
+/* ---------- formulários ---------- */
+
+/* text-base no mobile: fontes <16px fazem o iOS dar zoom automático no foco */
+.input {
+  @apply bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-lg px-3 py-1.5 text-base sm:text-sm text-slate-200 outline-none w-full transition-all duration-150;
+}
+.input:focus {
+  @apply border-signal-500/60 shadow-glow-signal bg-white/[0.06];
+}
+.input::placeholder {
+  @apply text-muted/70;
+}
+select.input option {
+  @apply bg-deep-800 text-slate-200;
+}
+
+.btn-primary {
+  @apply relative overflow-hidden bg-gradient-to-r from-signal-600 to-accent-600 hover:from-signal-500 hover:to-accent-500 text-white font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 shadow-glow-signal disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98];
+}
+/* brilho que varre o botão no hover */
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.22) 50%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 0.55s ease;
+  pointer-events: none;
+}
+.btn-primary:hover::after {
+  transform: translateX(130%);
+}
+
+.btn-ghost {
+  @apply px-4 py-1.5 text-sm text-muted hover:text-slate-100 rounded-lg hover:bg-white/[0.05] transition-all duration-150;
+}
+
+.label-field {
+  @apply text-[11px] uppercase tracking-widest text-muted font-mono block mb-1;
+}
+
+/* ---------- utilitários de tipografia ---------- */
+
+.eyebrow {
+  @apply text-[10px] uppercase tracking-[0.2em] text-signal-400 font-mono;
+}
+
+.stat-number {
+  @apply font-display font-semibold text-slate-100 tabular-nums;
+}
+
+/* ---------- scrollbar ---------- */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: theme('colors.deep.700');
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.deep.600');
+}
+
+/* ---------- react flow ---------- */
+
+.react-flow__controls {
+  @apply !bg-deep-900/90 !border !border-white/10 !rounded-xl overflow-hidden !shadow-glass backdrop-blur-xl;
+}
+.react-flow__controls-button {
+  @apply !bg-transparent !border-b !border-white/[0.06];
+}
+.react-flow__controls-button svg {
+  fill: #82828e;
+  transition: fill 0.15s;
+}
+.react-flow__controls-button:hover svg {
+  fill: #ff4d5a;
+}
+
+.react-flow__minimap {
+  @apply !bg-deep-900/90 !rounded-xl overflow-hidden border border-white/10;
+}
+
+.react-flow__handle {
+  @apply !w-2 !h-2 !border-0 !bg-signal-500/80 opacity-0 transition-opacity duration-150;
+}
+.react-flow__node:hover .react-flow__handle,
+.react-flow__node.selected .react-flow__handle {
+  opacity: 1;
+}
+
+.react-flow__edge-path {
+  transition: stroke 0.3s;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #ff4d5a !important;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+/* ---------- mapa (leaflet) ---------- */
+
+.leaflet-container {
+  background: #060607;
+  font-family: inherit;
+}
+
+/* Cor do pin acompanha a saúde da empresa: verde ok, vermelho queda,
+   âmbar degradado, cinza sem monitoramento */
+.marcador-empresa {
+  --cor-marcador: #82828e;
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.marcador-empresa::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 9999px;
+  background: var(--cor-marcador);
+  box-shadow: 0 0 10px var(--cor-marcador), 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+.marcador-empresa::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid var(--cor-marcador);
+  opacity: 0.7;
+  animation: sonarPing 2s ease-out infinite;
+}
+
+.marcador-online {
+  --cor-marcador: #2fd771;
+}
+.marcador-degradado {
+  --cor-marcador: #ffb224;
+}
+.marcador-offline {
+  --cor-marcador: #ff2b3a;
+}
+@keyframes marcadorPisca {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.marcador-offline::before {
+  animation: marcadorPisca 0.9s ease-in-out infinite;
+}
+.marcador-sem::after {
+  animation: none;
+  opacity: 0.35;
+}
+
+.tooltip-mapa {
+  background: rgba(11, 11, 15, 0.92) !important;
+  border: 1px solid rgba(255, 43, 58, 0.35) !important;
+  border-radius: 8px !important;
+  color: #e9eaf2 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+.tooltip-mapa::before {
+  border-top-color: rgba(255, 43, 58, 0.35) !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(11, 11, 15, 0.92) !important;
+  color: #82828e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.leaflet-control-zoom a:hover {
+  color: #ff4d5a !important;
+  background: rgba(18, 18, 24, 0.95) !important;
+}
+.leaflet-bar {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+.leaflet-control-attribution {
+  background: rgba(6, 6, 7, 0.72) !important;
+  color: #5a5a64 !important;
+  font-size: 9px !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+.leaflet-control-attribution a {
+  color: #82828e !important;
+}
+
+/* ---------- transição entre telas: continuidade espacial ---------- */
+
+/* avançar = entra da direita; voltar = entra da esquerda */
+@keyframes telaAvante {
+  from { opacity: 0; transform: translateX(22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes telaVolta {
+  from { opacity: 0; transform: translateX(-22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.tela-avante {
+  animation: telaAvante 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tela-volta {
+  animation: telaVolta 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------- toasts ---------- */
+
+@keyframes toastEntra {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastSai {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(6px); }
+}
+.toast-entra {
+  animation: toastEntra 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-sai {
+  animation: toastSai 0.2s ease-in forwards;
+}
+
+/* ---------- Visão Macro: abertura orquestrada do readout ---------- */
+
+@keyframes macroWordReveal {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.35; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+@keyframes macroFinRise {
+  from { opacity: 0; transform: translateY(10px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes macroMetricIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.macro-word { animation: macroWordReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both; }
+.macro-fin { animation: macroFinRise 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both; }
+.macro-metrics { animation: macroMetricIn 0.5s ease-out 0.4s both; }
+
+/* ---------- HUD de mira: abertura da Visão Macro ---------- */
+
+@keyframes hudDraw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes hudPop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes hudSpinIn {
+  from { transform: rotate(70deg); opacity: 0; }
+  to { transform: rotate(0deg); opacity: 1; }
+}
+@keyframes hudOverlaySai {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* elementos com stroke usam pathLength=1 no SVG */
+.hud-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hudDraw var(--dur, 0.7s) ease-out var(--delay, 0s) forwards;
+}
+.hud-pop {
+  opacity: 0;
+  animation: hudPop 0.3s ease-out var(--delay, 0s) forwards;
+}
+.hud-spin {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: hudSpinIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+/* a mira toca por ~2s e sai de cena sozinha */
+.hud-overlay {
+  animation: hudOverlaySai 0.5s ease-in 2.05s forwards;
+}
+
+/* ---------- fundo interno: traço viajando pelos caminhos ---------- */
+
+.caminho-fluxo {
+  stroke-dasharray: 300 900;
+  animation: caminhoFluxo var(--dur, 24s) linear var(--atraso, 0s) infinite;
+}
+@keyframes caminhoFluxo {
+  to {
+    stroke-dashoffset: -1200;
+  }
+}
+
+/* ---------- marca uptimeX: rede se desenha, nós acendem, barbatana emerge ---------- */
+
+.uptx-arestas {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: uptxDesenhar 1.1s ease-out 0.15s forwards;
+}
+@keyframes uptxDesenhar {
+  to { stroke-dashoffset: 0; }
+}
+
+.uptx-no {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  /* entrada com leve overshoot + pulso ambiente depois que tudo assentou */
+  animation:
+    uptxNoEntra 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) var(--atraso, 0s) forwards,
+    uptxNoPulso 3.6s ease-in-out calc(var(--atraso, 0s) + 2s) infinite;
+}
+@keyframes uptxNoEntra {
+  0% { opacity: 0; transform: scale(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes uptxNoPulso {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.22); }
+}
+
+.uptx-fin-entrada {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: uptxFinEntra 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.85s forwards;
+}
+@keyframes uptxFinEntra {
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* respiração sutil do brilho interno da barbatana */
+.uptx-rim-brilho {
+  animation: uptxRimBrilho 4.5s ease-in-out 2.4s infinite;
+}
+@keyframes uptxRimBrilho {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.55; }
+}
+
+/* ---------- login: entrada orquestrada, tremor e pacotes ---------- */
+
+/* elementos entram escalonados via animation-delay inline */
+.entrada {
+  opacity: 0;
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-7px); }
+  40%, 80% { transform: translateX(7px); }
+}
+.animate-shake {
+  animation: shakeX 0.45s ease-in-out;
+}
+
+/* rastros de pacotes cruzando a tela de login */
+@keyframes packetCross {
+  0% { transform: translateX(-15vw); opacity: 0; }
+  8% { opacity: 0.8; }
+  92% { opacity: 0.8; }
+  100% { transform: translateX(112vw); opacity: 0; }
+}
+.packet-streak {
+  position: absolute;
+  left: 0;
+  height: 1px;
+  width: 130px;
+  background: linear-gradient(90deg, transparent, rgba(255, 43, 58, 0.7), transparent);
+  animation: packetCross linear infinite;
+}
+
+/* ---------- movimento reduzido ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

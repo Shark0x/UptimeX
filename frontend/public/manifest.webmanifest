@@ -1,0 +1,17 @@
+{
+  "name": "uptimeX — Central de Operações",
+  "short_name": "uptimeX",
+  "description": "Monitoramento de rede ICMP/SNMP em tempo real",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060607",
+  "theme_color": "#060607",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

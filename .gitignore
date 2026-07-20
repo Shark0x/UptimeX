@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.log
+
+# Segredos e ambiente — NUNCA versionar (os .example ficam no repo)
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Dados locais: backups do banco e fotos enviadas
+backup*.sql
+backend/uploads/
+
+# Scripts temporários de teste
+tmp_*.ts
+
+# Ferramentas locais do Claude Code (configuração pessoal da máquina)
+.claude/
