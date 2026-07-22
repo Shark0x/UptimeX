@@ -266,7 +266,10 @@ export const api = {
     req('/links', { method: 'POST', body: JSON.stringify({ empresa_id, bloco, descricao }) }),
   removerLink: (id: number) => req(`/links/${id}`, { method: 'DELETE' }),
 
-  statusAlertas: (): Promise<{ telegramConfigurado: boolean }> => req('/alertas/status'),
+  statusAlertas: (): Promise<{ telegramConfigurado: boolean; tokenDefinido: boolean; chatId: string; atrasoSeg: number }> =>
+    req('/alertas/status'),
+  salvarConfigAlertas: (payload: { bot_token?: string; chat_id: string; alerta_atraso_seg: number }) =>
+    req('/alertas/config', { method: 'POST', body: JSON.stringify(payload) }),
   testarAlertaTelegram: () => req('/alertas/teste', { method: 'POST' }),
 
   listarUsuarios: (): Promise<UsuarioListado[]> => req('/usuarios'),

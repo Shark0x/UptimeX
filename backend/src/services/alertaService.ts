@@ -1,4 +1,5 @@
 import { pool } from '../db/pool';
+import { obterConfig } from './configService';
 import { enviarTelegram, escaparHtml, telegramConfigurado } from './telegramService';
 
 /**
@@ -11,7 +12,7 @@ import { enviarTelegram, escaparHtml, telegramConfigurado } from './telegramServ
  */
 
 const ATRASO_PADRAO_SEG = 120;
-const atrasoMs = () => (Number(process.env.ALERTA_ATRASO_SEG) || ATRASO_PADRAO_SEG) * 1000;
+const atrasoMs = () => (Number(obterConfig('alerta_atraso_seg', 'ALERTA_ATRASO_SEG')) || ATRASO_PADRAO_SEG) * 1000;
 
 interface DispositivoAlerta {
   id: number;

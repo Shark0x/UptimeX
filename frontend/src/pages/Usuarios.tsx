@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 
 export function Usuarios() {
-  const { usuario } = useAuth();
+  const { usuario, isAdmin } = useAuth();
   const toast = useToast();
   const [usuarios, setUsuarios] = useState<UsuarioListado[]>([]);
   const [formAberto, setFormAberto] = useState(false);
@@ -13,17 +13,54 @@ export function Usuarios() {
   const [role, setRole] = useState<Papel>('visualizador');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+  // Configuração dos alertas do Telegram
   const [telegramAtivo, setTelegramAtivo] = useState<boolean | null>(null);
+  const [tokenDefinido, setTokenDefinido] = useState(false);
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState('');
+  const [atrasoSeg, setAtrasoSeg] = useState(120);
+  const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [testandoTelegram, setTestandoTelegram] = useState(false);
 
   async function carregar() {
     setUsuarios(await api.listarUsuarios());
   }
 
+  function carregarStatusAlertas() {
+    api
+      .statusAlertas()
+      .then((s) => {
+        setTelegramAtivo(s.telegramConfigurado);
+        setTokenDefinido(s.tokenDefinido);
+        setChatId(s.chatId || '');
+        setAtrasoSeg(s.atrasoSeg || 120);
+      })
+      .catch(() => setTelegramAtivo(null));
+  }
+
   useEffect(() => {
     carregar();
-    api.statusAlertas().then((s) => setTelegramAtivo(s.telegramConfigurado)).catch(() => setTelegramAtivo(null));
+    carregarStatusAlertas();
   }, []);
+
+  async function salvarConfig() {
+    setSalvandoConfig(true);
+    try {
+      await api.salvarConfigAlertas({
+        bot_token: botToken.trim() || undefined,
+        chat_id: chatId.trim(),
+        alerta_atraso_seg: atrasoSeg,
+      });
+      setBotToken('');
+      toast.sucesso('Configuração salva');
+      carregarStatusAlertas();
+    } catch (e: any) {
+      toast.erro(e.message || 'Não foi possível salvar a configuração.');
+    } finally {
+      setSalvandoConfig(false);
+    }
+  }
 
   async function testarTelegram() {
     setTestandoTelegram(true);
@@ -122,25 +159,75 @@ export function Usuarios() {
         </table>
       </div>
 
-      {/* -------- alertas externos -------- */}
-      <div className="glass-panel hud-corners p-5 mt-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="eyebrow mb-1">Alertas</p>
-          <p className="font-display font-semibold text-slate-100">
-            Telegram{' '}
-            <span className={`text-xs font-mono uppercase tracking-wider ml-2 ${telegramAtivo ? 'text-online' : 'text-muted'}`}>
-              {telegramAtivo === null ? '' : telegramAtivo ? '● ativo' : '○ não configurado'}
-            </span>
-          </p>
-          <p className="text-muted text-sm mt-1 max-w-lg">
-            {telegramAtivo
-              ? 'Quedas com mais de 2 minutos e recuperações chegam no chat configurado.'
-              : 'Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no backend/.env (passo a passo no .env.example) e reinicie o backend.'}
-          </p>
+      {/* -------- alertas do Telegram -------- */}
+      <div className="glass-panel hud-corners p-5 mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="eyebrow mb-1">Alertas</p>
+            <p className="font-display font-semibold text-slate-100">
+              Telegram{' '}
+              <span className={`text-xs font-mono uppercase tracking-wider ml-2 ${telegramAtivo ? 'text-online' : 'text-muted'}`}>
+                {telegramAtivo === null ? '' : telegramAtivo ? '● ativo' : '○ não configurado'}
+              </span>
+            </p>
+            <p className="text-muted text-sm mt-1 max-w-lg">
+              Quedas que passam do tempo abaixo e as recuperações chegam no chat configurado.
+            </p>
+          </div>
+          <button
+            onClick={testarTelegram}
+            disabled={testandoTelegram || !telegramAtivo}
+            className="btn-ghost border border-white/10 disabled:opacity-40"
+          >
+            {testandoTelegram ? 'Enviando…' : 'Enviar teste'}
+          </button>
         </div>
-        <button onClick={testarTelegram} disabled={testandoTelegram} className="btn-ghost border border-white/10 disabled:opacity-50">
-          {testandoTelegram ? 'Enviando…' : 'Enviar teste'}
-        </button>
+
+        {isAdmin && (
+          <div className="mt-4 pt-4 border-t border-white/[0.06] grid sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="label-field">Token do bot (@BotFather)</label>
+              <input
+                type="password"
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                placeholder={tokenDefinido ? '•••••••••• (deixe em branco pra manter)' : 'cole o token aqui'}
+                className="input font-mono"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="label-field">Chat ID</label>
+              <input
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                placeholder="ex: 8123456789 ou -100123... (grupo)"
+                className="input font-mono"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="label-field">Alertar queda após (segundos)</label>
+              <input
+                type="number"
+                value={atrasoSeg}
+                onChange={(e) => setAtrasoSeg(Number(e.target.value))}
+                min={10}
+                max={3600}
+                className="input"
+              />
+            </div>
+            <div className="sm:col-span-2 flex items-center justify-between gap-3">
+              <p className="text-[11px] font-mono text-muted">
+                Como pegar o chat id:{' '}
+                <span className="text-slate-300">mande um "oi" pro bot → abra api.telegram.org/bot&lt;token&gt;/getUpdates</span>
+              </p>
+              <button onClick={salvarConfig} disabled={salvandoConfig} className="btn-primary shrink-0">
+                {salvandoConfig ? 'Salvando…' : 'Salvar configuração'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {formAberto && (

@@ -15,6 +15,7 @@ import { auditoriaRouter } from './routes/auditoria';
 import { alertasRouter } from './routes/alertas';
 import { linksRouter } from './routes/links';
 import { iniciarTodosDispositivos } from './services/monitorEngine';
+import { carregarConfig } from './services/configService';
 import { telegramConfigurado } from './services/telegramService';
 import { verifyToken } from './services/authService';
 
@@ -92,10 +93,11 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, async () => {
   console.log(`NetMonitor backend rodando na porta ${PORT}`);
+  await carregarConfig();
   console.log(
     telegramConfigurado()
       ? 'Alertas Telegram: ATIVOS'
-      : 'Alertas Telegram: desativados (defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no .env)'
+      : 'Alertas Telegram: desativados (configure na tela Usuários ou no .env)'
   );
   await iniciarTodosDispositivos(io);
 });

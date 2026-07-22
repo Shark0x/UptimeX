@@ -145,6 +145,12 @@ CREATE TABLE IF NOT EXISTS links_dedicados (
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
 );
 
+-- Configurações editáveis pela interface (ex: token/chat do Telegram, anti-ruído)
+CREATE TABLE IF NOT EXISTS configuracoes (
+  chave VARCHAR(60) PRIMARY KEY,
+  valor TEXT
+);
+
 -- Auditoria: quem fez o quê
 CREATE TABLE IF NOT EXISTS auditoria (
   id INT AUTO_INCREMENT PRIMARY KEY,

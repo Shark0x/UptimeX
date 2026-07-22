@@ -1,16 +1,14 @@
+import { obterConfig } from './configService';
+
 /**
  * Envio de mensagens via Telegram Bot API — sem dependência externa (fetch nativo).
  *
- * Config no .env do backend:
- *   TELEGRAM_BOT_TOKEN  token do bot criado no @BotFather
- *   TELEGRAM_CHAT_ID    id do chat/grupo que recebe os alertas
- *
- * Env é lida de forma preguiçosa (função, não const de módulo) porque o
- * dotenv.config() roda depois dos imports no index.ts.
+ * Configuração pela tela Usuários (salva no banco) ou, como alternativa, pelo
+ * .env (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). A UI tem precedência.
  */
 
-const token = () => process.env.TELEGRAM_BOT_TOKEN?.trim() || '';
-const chatId = () => process.env.TELEGRAM_CHAT_ID?.trim() || '';
+const token = () => obterConfig('telegram_bot_token', 'TELEGRAM_BOT_TOKEN');
+const chatId = () => obterConfig('telegram_chat_id', 'TELEGRAM_CHAT_ID');
 
 export function telegramConfigurado(): boolean {
   return token() !== '' && chatId() !== '';
