@@ -272,6 +272,19 @@ export const api = {
     req('/alertas/config', { method: 'POST', body: JSON.stringify(payload) }),
   testarAlertaTelegram: () => req('/alertas/teste', { method: 'POST' }),
 
+  adminOverview: (): Promise<{
+    empresas: number;
+    usuarios: number;
+    links_dedicados: number;
+    dispositivos: { total: number; online: number; degradados: number; offline: number };
+    servicos: { banco: boolean; telegram: boolean; mcp: boolean };
+    uptime_segundos: number;
+  }> => req('/admin/overview'),
+
+  statusIntegracao: (): Promise<{ mcpAtivo: boolean; caminho: string }> => req('/integracao/status'),
+  gerarChaveMcp: (): Promise<{ chave: string }> => req('/integracao/chave', { method: 'POST' }),
+  revogarChaveMcp: () => req('/integracao/chave', { method: 'DELETE' }),
+
   listarUsuarios: (): Promise<UsuarioListado[]> => req('/usuarios'),
   criarUsuario: (username: string, password: string, role: Papel) =>
     req('/usuarios', { method: 'POST', body: JSON.stringify({ username, password, role }) }),

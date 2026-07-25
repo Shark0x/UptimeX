@@ -7,12 +7,12 @@ import { Dashboard } from './pages/Dashboard';
 import { EmpresaPainel } from './pages/EmpresaPainel';
 import { TelaLogin } from './pages/Login';
 import { PainelMacro } from './pages/PainelMacro';
-import { Usuarios } from './pages/Usuarios';
+import { Admin } from './pages/Admin';
 
-type Vista = 'dashboard' | 'macro' | 'empresa' | 'usuarios';
+type Vista = 'dashboard' | 'macro' | 'empresa' | 'admin';
 
 // Profundidade de cada vista: avançar entra da direita, voltar entra da esquerda
-const PROFUNDIDADE: Record<Vista, number> = { dashboard: 0, macro: 0, usuarios: 1, empresa: 1 };
+const PROFUNDIDADE: Record<Vista, number> = { dashboard: 0, macro: 0, admin: 1, empresa: 1 };
 
 function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista) => void }) {
   const { usuario, isAdmin, logout } = useAuth();
@@ -40,10 +40,10 @@ function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista
         </button>
         {isAdmin && (
           <button
-            onClick={() => setVista('usuarios')}
-            className={`text-sm font-display transition-colors ${vista === 'usuarios' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
+            onClick={() => setVista('admin')}
+            className={`text-sm font-display transition-colors ${vista === 'admin' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
           >
-            Usuários
+            Administração
           </button>
         )}
       </div>
@@ -85,7 +85,7 @@ export default function App() {
       <div className="max-w-7xl mx-auto">
         <BarraNavegacao vista={vista} setVista={irPara} />
         <div key={vista} className={`h-[calc(100dvh-8rem)] ${direcao === 'avante' ? 'tela-avante' : 'tela-volta'}`}>
-          {vista === 'usuarios' && <Usuarios />}
+          {vista === 'admin' && <Admin />}
           {vista === 'macro' && <PainelMacro onSelecionar={selecionarEmpresa} />}
           {vista === 'dashboard' && <Dashboard onSelecionar={selecionarEmpresa} />}
           {vista === 'empresa' && empresaAtiva && (

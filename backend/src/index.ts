@@ -14,8 +14,12 @@ import { topologiaRouter } from './routes/topologia';
 import { auditoriaRouter } from './routes/auditoria';
 import { alertasRouter } from './routes/alertas';
 import { linksRouter } from './routes/links';
+import { integracaoRouter } from './routes/integracao';
+import { adminRouter } from './routes/admin';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { criarServidorMcp } from './mcp/uptimexMcp';
 import { iniciarTodosDispositivos } from './services/monitorEngine';
-import { carregarConfig } from './services/configService';
+import { carregarConfig, obterConfig } from './services/configService';
 import { telegramConfigurado } from './services/telegramService';
 import { verifyToken } from './services/authService';
 
@@ -64,6 +68,34 @@ app.use('/api/topologia', topologiaRouter);
 app.use('/api/auditoria', auditoriaRouter);
 app.use('/api/alertas', alertasRouter);
 app.use('/api/links', linksRouter);
+app.use('/api/integracao', integracaoRouter);
+app.use('/api/admin', adminRouter);
+
+// -------- Servidor MCP (Streamable HTTP, stateless) --------
+// A IA da empresa conecta aqui. Autenticação própria por chave (não é o JWT dos
+// usuários); só leitura. Sem chave configurada, o endpoint fica desligado.
+app.post('/api/mcp', async (req, res) => {
+  const respJsonRpc = (status: number, message: string) =>
+    res.status(status).json({ jsonrpc: '2.0', error: { code: -32000, message }, id: req.body?.id ?? null });
+
+  const chave = obterConfig('mcp_api_key');
+  if (!chave) return respJsonRpc(503, 'Integração MCP desativada — gere uma chave na tela Usuários.');
+
+  const auth = req.headers.authorization || '';
+  const enviado = auth.startsWith('Bearer ')
+    ? auth.slice(7).trim()
+    : String(req.headers['x-api-key'] || '').trim();
+  if (enviado !== chave) return respJsonRpc(401, 'Chave de API inválida ou ausente.');
+
+  const mcp = criarServidorMcp();
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  res.on('close', () => {
+    transport.close();
+    mcp.close();
+  });
+  await mcp.connect(transport);
+  await transport.handleRequest(req, res, req.body);
+});
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
