@@ -155,13 +155,24 @@ CREATE TABLE IF NOT EXISTS configuracoes (
 CREATE TABLE IF NOT EXISTS auditoria (
   id INT AUTO_INCREMENT PRIMARY KEY,
   usuario VARCHAR(100) NOT NULL,
-  acao VARCHAR(50) NOT NULL, -- criar, editar, remover, login etc
+  acao VARCHAR(50) NOT NULL, -- criar, editar, remover, login, login_falhou etc
   entidade VARCHAR(50) NOT NULL, -- empresa, dispositivo, topologia
   entidade_id INT,
   detalhes TEXT,
   ip_origem VARCHAR(45),
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Localização aproximada do IP de origem (login e tentativas de login), pra dar
+-- visibilidade de segurança sobre quem acessou o sistema e de onde.
+SET @colGeo := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'auditoria' AND column_name = 'pais');
+SET @sqlGeo := IF(@colGeo = 0,
+  'ALTER TABLE auditoria ADD COLUMN pais VARCHAR(5) NULL, ADD COLUMN regiao VARCHAR(10) NULL, ADD COLUMN cidade VARCHAR(100) NULL',
+  'SELECT 1');
+PREPARE stmtGeo FROM @sqlGeo;
+EXECUTE stmtGeo;
+DEALLOCATE PREPARE stmtGeo;
 
 -- CREATE INDEX não tem "IF NOT EXISTS" no MySQL, então checamos via information_schema
 -- pra esse arquivo poder ser reexecutado sem erro em bancos já migrados.

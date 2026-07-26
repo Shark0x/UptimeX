@@ -26,6 +26,7 @@ authRouter.post('/login', loginLimiter, validateBody(loginSchema), async (req, r
   const usuario = rows[0];
 
   if (!usuario || !usuario.ativo || !(await verifyPassword(password, usuario.senha_hash))) {
+    await registrarAuditoria(username, 'login_falhou', 'usuario', usuario?.id ?? null, 'Tentativa de login com credenciais inválidas', req.ip);
     return res.status(401).json({ erro: 'Credenciais inválidas' });
   }
 

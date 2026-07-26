@@ -221,6 +221,10 @@ export interface AuditoriaItem {
   entidade: string;
   entidade_id: number | null;
   detalhes: string;
+  ip_origem: string | null;
+  pais: string | null;
+  regiao: string | null;
+  cidade: string | null;
   timestamp: string;
 }
 

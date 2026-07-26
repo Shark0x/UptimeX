@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { pool } from '../db/pool';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, requireRole } from '../middleware/auth';
 
 export const auditoriaRouter = Router();
 
-auditoriaRouter.use(authMiddleware);
+// Contém IP e localização de quem acessou o sistema — informação sensível de
+// segurança, restrita a admin (mesmo padrão de usuarios/admin routers).
+auditoriaRouter.use(authMiddleware, requireRole('admin'));
 
 auditoriaRouter.get('/', async (req, res) => {
   const limite = Math.min(Number(req.query.limite) || 200, 1000);

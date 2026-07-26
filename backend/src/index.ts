@@ -28,6 +28,11 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// Backend só é alcançado pelo nginx do próprio compose (não tem porta publicada
+// no host), então confiar no X-Forwarded-For desse único salto é seguro e é o
+// que permite req.ip refletir o IP real do visitante, não o IP do container nginx.
+app.set('trust proxy', true);
+
 // FRONTEND_URL aceita lista separada por vírgula. Além dela, libera o frontend
 // servido por IP privado da rede local (acesso pelo celular no dev), sempre na
 // porta 5173 — origens públicas continuam bloqueadas.
