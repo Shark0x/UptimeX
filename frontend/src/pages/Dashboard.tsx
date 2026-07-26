@@ -174,7 +174,7 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
           </div>
 
           <div className="flex-1 min-h-0">
-            <MapaEmpresas empresas={empresas} foco={foco} statusPorEmpresa={statusPorEmpresa} />
+            <MapaEmpresas empresas={empresas} foco={foco} statusPorEmpresa={statusPorEmpresa} onSelecionarEmpresa={onSelecionar} />
           </div>
 
           {localizadas.length === 0 && (

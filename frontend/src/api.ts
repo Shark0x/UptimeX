@@ -150,6 +150,15 @@ export interface HeartbeatPayload {
   timestamp: string;
 }
 
+/** Payload do evento socket global `status_global` — usado pelo mural da TV */
+export interface StatusGlobalPayload {
+  empresaId: number;
+  dispositivoId: number;
+  dispositivo: string;
+  statusNovo: 'online' | 'offline';
+  timestamp: string;
+}
+
 /** Limiares de degradação usados em toda a interface */
 export const LIMIAR_LATENCIA_MS = 150;
 export const LIMIAR_PERDA_PCT = 2;

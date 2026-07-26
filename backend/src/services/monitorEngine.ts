@@ -97,13 +97,23 @@ async function processarResultado(d: Dispositivo, r: ResultadoVerificacao, io: S
     // Alerta externo (Telegram) com anti-ruído — só transições reais chegam aqui
     notificarTransicao({ id: d.id, empresa_id: d.empresa_id, nome: d.nome, ip: d.ip }, novoStatus);
 
-    // Notifica o frontend em tempo real
+    // Notifica o frontend em tempo real (quem está com ESTA empresa aberta)
     io.to(`empresa_${d.empresa_id}`).emit('status_mudou', {
       dispositivoId: d.id,
       nome: d.nome,
       statusAnterior: d.status_atual,
       statusNovo: novoStatus,
       ...payloadMetricas,
+    });
+
+    // Broadcast global: o mural da TV do suporte reage na hora que QUALQUER IP
+    // cai/volta, sem precisar estar na sala da empresa.
+    io.emit('status_global', {
+      empresaId: d.empresa_id,
+      dispositivoId: d.id,
+      dispositivo: d.nome,
+      statusNovo: novoStatus,
+      timestamp: agora,
     });
   } else {
     // Mesmo status: heartbeat com as métricas do ciclo pro painel atualizar

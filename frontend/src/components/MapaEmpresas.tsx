@@ -13,6 +13,15 @@ function comCoordenadas(empresas: Empresa[]) {
   return empresas.filter((e) => e.latitude != null && e.longitude != null);
 }
 
+// Nome da empresa vai pra dentro de HTML do tooltip — escapar evita quebrar o
+// balão (ou injeção) se alguém cadastrar aspas/sinais no nome.
+function escaparHtml(texto: string): string {
+  return texto.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)
+  );
+}
+
 export type StatusMarcador = 'online' | 'degradado' | 'offline' | 'sem';
 
 /**
@@ -24,14 +33,25 @@ export function MapaEmpresas({
   empresas,
   foco,
   statusPorEmpresa = {},
+  modoVitrine = false,
+  onSelecionarEmpresa,
 }: {
   empresas: Empresa[];
   foco: { latitude: number; longitude: number } | null;
   statusPorEmpresa?: Record<number, StatusMarcador>;
+  /** Modo mural/TV: mapa travado (sem zoom/arraste), pinos maiores e nome fixo em quedas. */
+  modoVitrine?: boolean;
+  /** Clique num pino abre a empresa (ex.: ir direto ao painel de configuração). */
+  onSelecionarEmpresa?: (empresa: Empresa) => void;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<L.Map | null>(null);
   const camadaRef = useRef<L.LayerGroup | null>(null);
+  // Callback de clique sempre atual, sem precisar redesenhar os pinos a cada render
+  const aoSelecionarRef = useRef(onSelecionarEmpresa);
+  useEffect(() => {
+    aoSelecionarRef.current = onSelecionarEmpresa;
+  }, [onSelecionarEmpresa]);
 
   useEffect(() => {
     const div = divRef.current;
@@ -40,10 +60,16 @@ export function MapaEmpresas({
     const mapa = L.map(div, {
       center: CENTRO_PADRAO,
       zoom: ZOOM_PADRAO,
-      zoomControl: true,
+      zoomControl: !modoVitrine,
       attributionControl: true,
-      scrollWheelZoom: true,
+      scrollWheelZoom: !modoVitrine,
       worldCopyJump: true,
+      // Na TV do suporte o mapa fica fixo: ninguém arrasta/zooma sem querer
+      dragging: !modoVitrine,
+      doubleClickZoom: !modoVitrine,
+      boxZoom: !modoVitrine,
+      keyboard: !modoVitrine,
+      touchZoom: !modoVitrine,
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -74,19 +100,36 @@ export function MapaEmpresas({
     if (!camada) return;
 
     camada.clearLayers();
+    const tamanho = modoVitrine ? 26 : 14;
     comCoordenadas(empresas).forEach((e) => {
       const status = statusPorEmpresa[e.id] ?? 'sem';
       const icone = L.divIcon({
         className: '',
-        html: `<span class="marcador-empresa marcador-${status}"></span>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
+        html: `<span class="marcador-empresa marcador-${status}${modoVitrine ? ' marcador-grande' : ''}"></span>`,
+        iconSize: [tamanho, tamanho],
+        iconAnchor: [tamanho / 2, tamanho / 2],
       });
-      const rotulo =
-        status === 'offline' ? '🔴 queda' : status === 'degradado' ? '🟡 atenção' : status === 'online' ? '🟢 no ar' : 'sem monitor';
-      L.marker([Number(e.latitude), Number(e.longitude)], { icon: icone })
-        .bindTooltip(`${e.nome} · ${rotulo}`, { direction: 'top', offset: [0, -10], className: 'tooltip-mapa' })
-        .addTo(camada);
+      const marcador = L.marker([Number(e.latitude), Number(e.longitude)], { icon: icone });
+
+      if (modoVitrine && status === 'offline') {
+        // Mural da TV: quem parou de pingar ganha um POP-UP de alerta fixo, com o
+        // nome bem em cima do ponto — legível de longe, na sala do suporte.
+        marcador.bindTooltip(
+          `<span class="alerta-nome">${escaparHtml(e.nome)}</span><span class="alerta-tag">SEM PING · OFFLINE</span>`,
+          { direction: 'top', offset: [0, -tamanho / 2 - 4], className: 'tooltip-alerta', permanent: true, opacity: 1 }
+        );
+      } else {
+        const rotulo =
+          status === 'offline' ? '🔴 queda' : status === 'degradado' ? '🟡 atenção' : status === 'online' ? '🟢 no ar' : 'sem monitor';
+        marcador.bindTooltip(`${e.nome} · ${rotulo}`, {
+          direction: 'top',
+          offset: [0, -tamanho / 2 - 3],
+          className: 'tooltip-mapa',
+        });
+      }
+      // Clique no pino leva direto ao painel da empresa (config, dispositivos…)
+      marcador.on('click', () => aoSelecionarRef.current?.(e));
+      marcador.addTo(camada);
     });
   }, [empresas, statusPorEmpresa]);
 

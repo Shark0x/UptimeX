@@ -237,6 +237,16 @@ select.input option {
   opacity: 0.35;
 }
 
+/* Pino ampliado pro mural da TV — legível de longe, no fundo da sala do suporte */
+.marcador-grande {
+  width: 26px;
+  height: 26px;
+}
+.marcador-grande::before {
+  inset: 4px;
+  box-shadow: 0 0 18px var(--cor-marcador), 0 0 0 3px rgba(255, 255, 255, 0.16);
+}
+
 .tooltip-mapa {
   background: rgba(11, 11, 15, 0.92) !important;
   border: 1px solid rgba(255, 43, 58, 0.35) !important;
@@ -249,6 +259,46 @@ select.input option {
 }
 .tooltip-mapa::before {
   border-top-color: rgba(255, 43, 58, 0.35) !important;
+}
+
+/* Pop-up de alerta do mural da TV: nome da empresa fora do ar, em cima do ponto */
+.tooltip-alerta {
+  background: rgba(22, 5, 7, 0.96) !important;
+  border: 1.5px solid #ff2b3a !important;
+  border-radius: 10px !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  padding: 6px 13px !important;
+  box-shadow: 0 0 0 1px rgba(255, 43, 58, 0.25), 0 6px 26px rgba(255, 43, 58, 0.45) !important;
+  animation: alertaPulse 1.2s ease-in-out infinite;
+}
+.tooltip-alerta::before {
+  border-top-color: #ff2b3a !important;
+}
+.alerta-nome {
+  display: block;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
+.alerta-tag {
+  display: block;
+  margin-top: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #ff9aa2;
+}
+@keyframes alertaPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255, 43, 58, 0.25), 0 6px 22px rgba(255, 43, 58, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(255, 43, 58, 0.6), 0 8px 34px rgba(255, 43, 58, 0.75);
+  }
 }
 
 .leaflet-control-zoom a {

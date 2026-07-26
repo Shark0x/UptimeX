@@ -8,11 +8,12 @@ import { EmpresaPainel } from './pages/EmpresaPainel';
 import { TelaLogin } from './pages/Login';
 import { PainelMacro } from './pages/PainelMacro';
 import { Admin } from './pages/Admin';
+import { MapaTV } from './pages/MapaTV';
 
-type Vista = 'dashboard' | 'macro' | 'empresa' | 'admin';
+type Vista = 'dashboard' | 'macro' | 'tv' | 'empresa' | 'admin';
 
 // Profundidade de cada vista: avançar entra da direita, voltar entra da esquerda
-const PROFUNDIDADE: Record<Vista, number> = { dashboard: 0, macro: 0, admin: 1, empresa: 1 };
+const PROFUNDIDADE: Record<Vista, number> = { dashboard: 0, macro: 0, tv: 0, admin: 1, empresa: 1 };
 
 function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista) => void }) {
   const { usuario, isAdmin, logout } = useAuth();
@@ -37,6 +38,12 @@ function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista
           className={`text-sm font-display transition-colors ${vista === 'macro' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
         >
           Visão Macro
+        </button>
+        <button
+          onClick={() => setVista('tv')}
+          className={`text-sm font-display transition-colors ${vista === 'tv' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
+        >
+          Mapa TV
         </button>
         {isAdmin && (
           <button
@@ -72,6 +79,20 @@ export default function App() {
   }
 
   if (!usuario) return <TelaLogin />;
+
+  // Mural da TV do suporte: ocupa a tela toda, fora do shell (sem navbar/margens).
+  // Clicar numa sede abre o painel dela; "voltar" retorna ao próprio mapa.
+  if (vista === 'tv')
+    return (
+      <MapaTV
+        onSair={() => setVista('dashboard')}
+        onAbrirEmpresa={(e) => {
+          setOrigemEmpresa('tv');
+          setEmpresaAtiva(e);
+          irPara('empresa');
+        }}
+      />
+    );
 
   function selecionarEmpresa(e: Empresa) {
     setOrigemEmpresa(vista === 'macro' ? 'macro' : 'dashboard');
