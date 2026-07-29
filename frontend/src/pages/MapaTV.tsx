@@ -72,6 +72,8 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const [atualizadoEm, setAtualizadoEm] = useState<number>(Date.now());
   const [agora, setAgora] = useState<Date>(new Date());
   const [emTelaCheia, setEmTelaCheia] = useState(false);
+  const [reenquadrar, setReenquadrar] = useState(0);
+  const [nomesNoMapa, setNomesNoMapa] = useState(true);
   const [somAtivo, setSomAtivo] = useState(false);
   const [alerta, setAlerta] = useState<{ nome: string; dispositivo: string; em: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -240,6 +242,17 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const corEstado =
     estado === 'offline' ? 'text-offline' : estado === 'degradado' ? 'text-warn' : estado === 'vazio' ? 'text-muted' : 'text-online';
 
+  // Empresas fora do ar → lista lateral (pior primeiro). Substitui os balões
+  // que se sobrepunham no mapa: aqui o nome é sempre legível, sem colisão.
+  const quedas = useMemo(
+    () =>
+      empresas
+        .filter((e) => statusPorEmpresa[e.id] === 'offline')
+        .map((e) => ({ empresa: e, offline: resumos[e.id]?.offline ?? 0, total: resumos[e.id]?.total ?? 0 }))
+        .sort((a, b) => b.offline - a.offline || a.empresa.nome.localeCompare(b.empresa.nome)),
+    [empresas, statusPorEmpresa, resumos]
+  );
+
   const localizadas = empresas.filter((e) => e.latitude != null && e.longitude != null).length;
 
   return (
@@ -293,6 +306,22 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
             {somAtivo ? '🔊 Som' : '🔇 Som'}
           </button>
           <button
+            onClick={() => setNomesNoMapa((v) => !v)}
+            className={`btn-ghost border ${nomesNoMapa ? 'border-signal-500/60 text-signal-400' : 'border-white/10'}`}
+            aria-pressed={nomesNoMapa}
+            title="Mostrar/ocultar o nome das empresas offline no mapa"
+          >
+            {nomesNoMapa ? 'Nomes: on' : 'Nomes: off'}
+          </button>
+          <button
+            onClick={() => setReenquadrar((n) => n + 1)}
+            className="btn-ghost border border-white/10"
+            aria-label="Reenquadrar o mapa em todas as sedes"
+            title="Voltar à visão geral de todas as sedes"
+          >
+            Reenquadrar
+          </button>
+          <button
             onClick={alternarTelaCheia}
             className="btn-ghost border border-white/10"
             aria-label={emTelaCheia ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
@@ -313,7 +342,42 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}
+          reenquadrarToken={reenquadrar}
+          rotularQuedas={nomesNoMapa}
         />
+
+        {/* painel lateral: quedas agora — nomes legíveis, sem sobrepor no mapa */}
+        {quedas.length > 0 && (
+          <div className="absolute top-4 right-4 z-[450] w-72 max-w-[38vw] max-h-[calc(100%-2rem)] flex flex-col glass-panel border-signal-500/40 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between shrink-0">
+              <span className="flex items-center gap-2 font-display font-semibold text-slate-100 text-sm">
+                <span className="relative flex w-2.5 h-2.5">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-offline/50 animate-sonar" />
+                  <span className="relative inline-flex rounded-full w-2.5 h-2.5 bg-offline" />
+                </span>
+                Quedas agora
+              </span>
+              <span className="stat-number text-offline text-lg tabular-nums leading-none">{quedas.length}</span>
+            </div>
+            <div className="overflow-y-auto divide-y divide-white/[0.05]">
+              {quedas.map(({ empresa, offline, total }) => (
+                <button
+                  key={empresa.id}
+                  onClick={() => onAbrirEmpresa(empresa)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-signal-600/10 transition-colors flex items-start justify-between gap-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-display font-semibold text-slate-100 text-sm truncate">{empresa.nome}</span>
+                    <span className="block text-[11px] font-mono text-muted truncate">{empresa.endereco || 'sem localização'}</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-offline tabular-nums shrink-0 mt-0.5">
+                    {offline}/{total} fora
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* banner "acabou de cair" — reforça o alerta com o nome ao nível dos olhos */}
         {alerta && (
