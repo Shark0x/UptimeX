@@ -21,6 +21,7 @@ import { criarServidorMcp } from './mcp/uptimexMcp';
 import { iniciarTodosDispositivos } from './services/monitorEngine';
 import { carregarConfig, obterConfig } from './services/configService';
 import { telegramConfigurado } from './services/telegramService';
+import { iniciarAgendadorResumos } from './services/resumoService';
 import { verifyToken } from './services/authService';
 
 dotenv.config();
@@ -137,4 +138,5 @@ server.listen(PORT, async () => {
       : 'Alertas Telegram: desativados (configure na tela Usuários ou no .env)'
   );
   await iniciarTodosDispositivos(io);
+  iniciarAgendadorResumos();
 });

@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { api, Papel, UsuarioListado } from '../api';
+import { api, ConfigResumo, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 import { AcessosLog } from '../components/AcessosLog';
+
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const RESUMO_PADRAO: ConfigResumo = {
+  diarioAtivo: true,
+  diarioHora: 8,
+  semanalAtivo: true,
+  semanalDia: 1,
+  semanalHora: 8,
+};
 
 type AbaAdmin = 'sistema' | 'usuarios' | 'alertas' | 'integracao' | 'acessos';
 
@@ -74,6 +83,11 @@ export function Admin() {
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [testandoTelegram, setTestandoTelegram] = useState(false);
 
+  // Resumos periódicos no Telegram
+  const [resumo, setResumo] = useState<ConfigResumo>(RESUMO_PADRAO);
+  const [salvandoResumo, setSalvandoResumo] = useState(false);
+  const [enviandoResumo, setEnviandoResumo] = useState<'diario' | 'semanal' | null>(null);
+
   // Integração MCP
   const [mcpAtivo, setMcpAtivo] = useState<boolean | null>(null);
   const [mcpCaminho, setMcpCaminho] = useState('/api/mcp');
@@ -94,6 +108,7 @@ export function Admin() {
         setTokenDefinido(s.tokenDefinido);
         setChatId(s.chatId || '');
         setAtrasoSeg(s.atrasoSeg || 120);
+        if (s.resumo) setResumo(s.resumo);
       })
       .catch(() => setTelegramAtivo(null));
   }
@@ -170,6 +185,31 @@ export function Admin() {
       toast.erro(e.message || 'Falha ao testar o Telegram.');
     } finally {
       setTestandoTelegram(false);
+    }
+  }
+
+  async function salvarResumo() {
+    setSalvandoResumo(true);
+    try {
+      const { resumo: salvo } = await api.salvarConfigResumo(resumo);
+      setResumo(salvo);
+      toast.sucesso('Resumos periódicos salvos');
+    } catch (e: any) {
+      toast.erro(e.message || 'Não foi possível salvar os resumos.');
+    } finally {
+      setSalvandoResumo(false);
+    }
+  }
+
+  async function enviarResumoAgora(periodo: 'diario' | 'semanal') {
+    setEnviandoResumo(periodo);
+    try {
+      await api.enviarResumoAgora(periodo);
+      toast.sucesso(`Resumo ${periodo === 'diario' ? 'diário' : 'semanal'} enviado — confira o Telegram`);
+    } catch (e: any) {
+      toast.erro(e.message || 'Falha ao enviar o resumo.');
+    } finally {
+      setEnviandoResumo(null);
     }
   }
 
@@ -361,7 +401,8 @@ export function Admin() {
 
       {/* ================= ALERTAS ================= */}
       {aba === 'alertas' && (
-        <div className="glass-panel hud-corners p-5 animate-fade-up">
+        <div className="space-y-4 animate-fade-up">
+        <div className="glass-panel hud-corners p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="eyebrow mb-1">Alertas</p>
@@ -429,6 +470,107 @@ export function Admin() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* --- Resumos periódicos --- */}
+        <div className="glass-panel hud-corners p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-1">Resumo periódico</p>
+              <p className="font-display font-semibold text-slate-100">Envios automáticos no Telegram</p>
+              <p className="text-muted text-sm mt-1 max-w-lg">
+                Um apanhado de quantas quedas houve, tempo total fora do ar e quem mais caiu — enviado no horário escolhido.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => enviarResumoAgora('diario')}
+                disabled={!telegramAtivo || enviandoResumo !== null}
+                className="btn-ghost border border-white/10 disabled:opacity-40"
+              >
+                {enviandoResumo === 'diario' ? 'Enviando…' : 'Testar diário'}
+              </button>
+              <button
+                onClick={() => enviarResumoAgora('semanal')}
+                disabled={!telegramAtivo || enviandoResumo !== null}
+                className="btn-ghost border border-white/10 disabled:opacity-40"
+              >
+                {enviandoResumo === 'semanal' ? 'Enviando…' : 'Testar semanal'}
+              </button>
+            </div>
+          </div>
+
+          {isAdmin && (
+            <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer select-none min-w-[140px]">
+                  <input
+                    type="checkbox"
+                    checked={resumo.diarioAtivo}
+                    onChange={(e) => setResumo({ ...resumo, diarioAtivo: e.target.checked })}
+                    className="accent-signal-500 w-4 h-4"
+                  />
+                  Resumo diário
+                </label>
+                <div className="flex items-center gap-2 text-sm text-muted">
+                  às
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={resumo.diarioHora}
+                    onChange={(e) => setResumo({ ...resumo, diarioHora: Number(e.target.value) })}
+                    disabled={!resumo.diarioAtivo}
+                    className="input w-20 disabled:opacity-40"
+                  />
+                  h
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer select-none min-w-[140px]">
+                  <input
+                    type="checkbox"
+                    checked={resumo.semanalAtivo}
+                    onChange={(e) => setResumo({ ...resumo, semanalAtivo: e.target.checked })}
+                    className="accent-signal-500 w-4 h-4"
+                  />
+                  Resumo semanal
+                </label>
+                <div className="flex items-center gap-2 text-sm text-muted">
+                  toda
+                  <select
+                    value={resumo.semanalDia}
+                    onChange={(e) => setResumo({ ...resumo, semanalDia: Number(e.target.value) })}
+                    disabled={!resumo.semanalAtivo}
+                    className="input w-32 disabled:opacity-40"
+                  >
+                    {DIAS_SEMANA.map((d, i) => (
+                      <option key={i} value={i}>{d}</option>
+                    ))}
+                  </select>
+                  às
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={resumo.semanalHora}
+                    onChange={(e) => setResumo({ ...resumo, semanalHora: Number(e.target.value) })}
+                    disabled={!resumo.semanalAtivo}
+                    className="input w-20 disabled:opacity-40"
+                  />
+                  h
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button onClick={salvarResumo} disabled={salvandoResumo} className="btn-primary">
+                  {salvandoResumo ? 'Salvando…' : 'Salvar resumos'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         </div>
       )}
 

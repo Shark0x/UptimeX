@@ -13,8 +13,17 @@ function comCoordenadas(empresas: Empresa[]) {
   return empresas.filter((e) => e.latitude != null && e.longitude != null);
 }
 
-// Nome da empresa vai pra dentro de HTML do tooltip — escapar evita quebrar o
-// balão (ou injeção) se alguém cadastrar aspas/sinais no nome.
+/** Enquadra o mapa nas sedes com coordenada (uma sede = zoom de cidade). */
+function enquadrarNasSedes(mapa: L.Map, pontos: Empresa[]) {
+  if (pontos.length === 1) {
+    mapa.setView([Number(pontos[0].latitude), Number(pontos[0].longitude)], ZOOM_CIDADE);
+  } else if (pontos.length > 1) {
+    const limites = L.latLngBounds(pontos.map((e) => [Number(e.latitude), Number(e.longitude)] as [number, number]));
+    mapa.fitBounds(limites, { padding: [42, 42], maxZoom: ZOOM_CIDADE });
+  }
+}
+
+// Nome vai pra dentro do HTML do rótulo — escapar evita quebrar o balão (ou injeção).
 function escaparHtml(texto: string): string {
   return texto.replace(
     /[&<>"']/g,
@@ -35,14 +44,20 @@ export function MapaEmpresas({
   statusPorEmpresa = {},
   modoVitrine = false,
   onSelecionarEmpresa,
+  reenquadrarToken,
+  rotularQuedas = false,
 }: {
   empresas: Empresa[];
   foco: { latitude: number; longitude: number } | null;
   statusPorEmpresa?: Record<number, StatusMarcador>;
-  /** Modo mural/TV: mapa travado (sem zoom/arraste), pinos maiores e nome fixo em quedas. */
+  /** Modo mural/TV: pinos maiores (o mapa continua navegável — arraste/zoom). */
   modoVitrine?: boolean;
   /** Clique num pino abre a empresa (ex.: ir direto ao painel de configuração). */
   onSelecionarEmpresa?: (empresa: Empresa) => void;
+  /** Ao incrementar, reenquadra o mapa em todas as sedes (botão "Reenquadrar"). */
+  reenquadrarToken?: number;
+  /** Mostra o nome fixo em cima das empresas offline (com anti-sobreposição). */
+  rotularQuedas?: boolean;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<L.Map | null>(null);
@@ -52,6 +67,31 @@ export function MapaEmpresas({
   useEffect(() => {
     aoSelecionarRef.current = onSelecionarEmpresa;
   }, [onSelecionarEmpresa]);
+  // Lista atual acessível fora do ciclo de render (usada pelo "Reenquadrar")
+  const empresasRef = useRef(empresas);
+  useEffect(() => {
+    empresasRef.current = empresas;
+  }, [empresas]);
+
+  // Rótulos fixos das quedas + anti-sobreposição. Esconde o rótulo que colidiria
+  // com um já visível (recalculado ao mover/zoom); a lista lateral tem todos.
+  const rotulosRef = useRef<L.Marker[]>([]);
+  const declutterRef = useRef<() => void>(() => {});
+  function declutter() {
+    const ocupados: DOMRect[] = [];
+    for (const m of rotulosRef.current) {
+      const el = m.getTooltip()?.getElement() as HTMLElement | undefined;
+      if (!el) continue;
+      el.classList.remove('rotulo-oculto');
+      const r = el.getBoundingClientRect();
+      const colide = ocupados.some(
+        (o) => !(r.right < o.left || r.left > o.right || r.bottom < o.top || r.top > o.bottom)
+      );
+      if (colide) el.classList.add('rotulo-oculto');
+      else ocupados.push(r);
+    }
+  }
+  declutterRef.current = declutter;
 
   useEffect(() => {
     const div = divRef.current;
@@ -60,16 +100,10 @@ export function MapaEmpresas({
     const mapa = L.map(div, {
       center: CENTRO_PADRAO,
       zoom: ZOOM_PADRAO,
-      zoomControl: !modoVitrine,
+      zoomControl: true,
       attributionControl: true,
-      scrollWheelZoom: !modoVitrine,
+      scrollWheelZoom: true,
       worldCopyJump: true,
-      // Na TV do suporte o mapa fica fixo: ninguém arrasta/zooma sem querer
-      dragging: !modoVitrine,
-      doubleClickZoom: !modoVitrine,
-      boxZoom: !modoVitrine,
-      keyboard: !modoVitrine,
-      touchZoom: !modoVitrine,
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -80,6 +114,9 @@ export function MapaEmpresas({
 
     camadaRef.current = L.layerGroup().addTo(mapa);
     mapaRef.current = mapa;
+
+    // Ao mover/dar zoom, os rótulos mudam de posição — refaz o anti-sobreposição
+    mapa.on('zoomend moveend', () => declutterRef.current());
 
     // O painel pode mudar de tamanho (responsivo/painéis vizinhos); sem isso o
     // Leaflet renderiza tiles pela metade quando o container cresce depois do mount.
@@ -100,6 +137,7 @@ export function MapaEmpresas({
     if (!camada) return;
 
     camada.clearLayers();
+    rotulosRef.current = [];
     const tamanho = modoVitrine ? 26 : 14;
     comCoordenadas(empresas).forEach((e) => {
       const status = statusPorEmpresa[e.id] ?? 'sem';
@@ -109,15 +147,23 @@ export function MapaEmpresas({
         iconSize: [tamanho, tamanho],
         iconAnchor: [tamanho / 2, tamanho / 2],
       });
-      const marcador = L.marker([Number(e.latitude), Number(e.longitude)], { icon: icone });
+      // Clique no pino leva direto ao painel da empresa (config, dispositivos…)
+      const marcador = L.marker([Number(e.latitude), Number(e.longitude)], { icon: icone }).on(
+        'click',
+        () => aoSelecionarRef.current?.(e)
+      );
 
-      if (modoVitrine && status === 'offline') {
-        // Mural da TV: quem parou de pingar ganha um POP-UP de alerta fixo, com o
-        // nome bem em cima do ponto — legível de longe, na sala do suporte.
-        marcador.bindTooltip(
-          `<span class="alerta-nome">${escaparHtml(e.nome)}</span><span class="alerta-tag">SEM PING · OFFLINE</span>`,
-          { direction: 'top', offset: [0, -tamanho / 2 - 4], className: 'tooltip-alerta', permanent: true, opacity: 1 }
-        );
+      if (rotularQuedas && status === 'offline') {
+        // Nome fixo em cima da empresa que caiu (Mapa TV). O declutter esconde os
+        // que se sobreporiam; a lista lateral mantém todos legíveis.
+        marcador.bindTooltip(escaparHtml(e.nome), {
+          direction: 'top',
+          offset: [0, -tamanho / 2 - 3],
+          className: 'tooltip-quedatv',
+          permanent: true,
+          opacity: 1,
+        });
+        rotulosRef.current.push(marcador);
       } else {
         const rotulo =
           status === 'offline' ? '🔴 queda' : status === 'degradado' ? '🟡 atenção' : status === 'online' ? '🟢 no ar' : 'sem monitor';
@@ -127,11 +173,11 @@ export function MapaEmpresas({
           className: 'tooltip-mapa',
         });
       }
-      // Clique no pino leva direto ao painel da empresa (config, dispositivos…)
-      marcador.on('click', () => aoSelecionarRef.current?.(e));
       marcador.addTo(camada);
     });
-  }, [empresas, statusPorEmpresa]);
+    // Espera o Leaflet posicionar os rótulos antes de medir a sobreposição
+    requestAnimationFrame(() => declutterRef.current());
+  }, [empresas, statusPorEmpresa, rotularQuedas]);
 
   // Enquadramento só quando o CONJUNTO de sedes muda de fato — atualização de
   // status a cada 15s não pode roubar o mapa de quem está navegando nele
@@ -143,14 +189,15 @@ export function MapaEmpresas({
     const assinatura = pontos.map((e) => `${e.id}:${e.latitude},${e.longitude}`).join('|');
     if (assinatura === assinaturaSedes.current) return;
     assinaturaSedes.current = assinatura;
-
-    if (pontos.length === 1) {
-      mapa.setView([Number(pontos[0].latitude), Number(pontos[0].longitude)], ZOOM_CIDADE);
-    } else if (pontos.length > 1) {
-      const limites = L.latLngBounds(pontos.map((e) => [Number(e.latitude), Number(e.longitude)] as [number, number]));
-      mapa.fitBounds(limites, { padding: [42, 42], maxZoom: ZOOM_CIDADE });
-    }
+    enquadrarNasSedes(mapa, pontos);
   }, [empresas]);
+
+  // Botão "Reenquadrar" (Mapa TV): volta pra visão geral de todas as sedes
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    if (!mapa || !reenquadrarToken) return;
+    enquadrarNasSedes(mapa, comCoordenadas(empresasRef.current));
+  }, [reenquadrarToken]);
 
   // Foco vindo do hover nos cards/chips — voa até a sede e fica lá
   useEffect(() => {

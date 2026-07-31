@@ -159,6 +159,15 @@ export interface StatusGlobalPayload {
   timestamp: string;
 }
 
+/** Configuração dos resumos periódicos enviados ao Telegram */
+export interface ConfigResumo {
+  diarioAtivo: boolean;
+  diarioHora: number;
+  semanalAtivo: boolean;
+  semanalDia: number; // 0=domingo … 6=sábado
+  semanalHora: number;
+}
+
 /** Limiares de degradação usados em toda a interface */
 export const LIMIAR_LATENCIA_MS = 150;
 export const LIMIAR_PERDA_PCT = 2;
@@ -286,11 +295,21 @@ export const api = {
     req('/links', { method: 'POST', body: JSON.stringify({ empresa_id, bloco, descricao }) }),
   removerLink: (id: number) => req(`/links/${id}`, { method: 'DELETE' }),
 
-  statusAlertas: (): Promise<{ telegramConfigurado: boolean; tokenDefinido: boolean; chatId: string; atrasoSeg: number }> =>
-    req('/alertas/status'),
+  statusAlertas: (): Promise<{
+    telegramConfigurado: boolean;
+    tokenDefinido: boolean;
+    chatId: string;
+    atrasoSeg: number;
+    resumo: ConfigResumo;
+  }> => req('/alertas/status'),
   salvarConfigAlertas: (payload: { bot_token?: string; chat_id: string; alerta_atraso_seg: number }) =>
     req('/alertas/config', { method: 'POST', body: JSON.stringify(payload) }),
   testarAlertaTelegram: () => req('/alertas/teste', { method: 'POST' }),
+
+  salvarConfigResumo: (payload: ConfigResumo): Promise<{ ok: boolean; resumo: ConfigResumo }> =>
+    req('/alertas/resumo/config', { method: 'POST', body: JSON.stringify(payload) }),
+  enviarResumoAgora: (periodo: 'diario' | 'semanal') =>
+    req('/alertas/resumo/enviar', { method: 'POST', body: JSON.stringify({ periodo }) }),
 
   adminOverview: (): Promise<{
     empresas: number;
