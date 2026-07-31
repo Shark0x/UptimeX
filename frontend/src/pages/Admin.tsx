@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { api, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
+import { AcessosLog } from '../components/AcessosLog';
 
-type AbaAdmin = 'sistema' | 'usuarios' | 'alertas' | 'integracao';
+type AbaAdmin = 'sistema' | 'usuarios' | 'alertas' | 'integracao' | 'acessos';
 
 interface Overview {
   empresas: number;
@@ -216,6 +217,7 @@ export function Admin() {
     { id: 'usuarios', label: 'Usuários' },
     { id: 'alertas', label: 'Alertas' },
     { id: 'integracao', label: 'Integração IA' },
+    { id: 'acessos', label: 'Acessos' },
   ];
 
   return (
@@ -490,6 +492,16 @@ export function Admin() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ================= ACESSOS ================= */}
+      {aba === 'acessos' && (
+        <div className="animate-fade-up">
+          <p className="text-muted text-sm font-mono mb-3">
+            login e tentativas de login no site — usuário, IP e localização
+          </p>
+          <AcessosLog />
         </div>
       )}
 

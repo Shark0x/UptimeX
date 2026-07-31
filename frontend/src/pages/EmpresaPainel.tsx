@@ -94,7 +94,7 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
     { id: 'topologia', label: 'Topologia' },
     { id: 'links', label: 'Link Dedicado' },
     { id: 'historico', label: 'Histórico' },
-    ...(isAdmin ? [{ id: 'auditoria' as const, label: 'Auditoria' }] : []),
+    { id: 'auditoria', label: 'Auditoria' },
   ];
 
   return (

@@ -44,3 +44,16 @@ adminRouter.get('/overview', async (_req, res) => {
     uptime_segundos: Math.round(process.uptime()),
   });
 });
+
+// Log de acesso ao site (quem tentou logar, de onde) — visão de segurança
+// no nível do sistema, separada do histórico de mudanças por empresa.
+adminRouter.get('/acessos', async (req, res) => {
+  const limite = Math.min(Number(req.query.limite) || 200, 1000);
+  const [rows] = await pool.query(
+    `SELECT id, usuario, acao, ip_origem, pais, regiao, cidade, timestamp
+     FROM auditoria WHERE acao IN ('login', 'login_falhou')
+     ORDER BY timestamp DESC LIMIT ?`,
+    [limite]
+  );
+  res.json(rows);
+});

@@ -221,6 +221,13 @@ export interface AuditoriaItem {
   entidade: string;
   entidade_id: number | null;
   detalhes: string;
+  timestamp: string;
+}
+
+export interface AcessoItem {
+  id: number;
+  usuario: string;
+  acao: 'login' | 'login_falhou';
   ip_origem: string | null;
   pais: string | null;
   regiao: string | null;
@@ -293,6 +300,7 @@ export const api = {
     servicos: { banco: boolean; telegram: boolean; mcp: boolean };
     uptime_segundos: number;
   }> => req('/admin/overview'),
+  acessos: (): Promise<AcessoItem[]> => req('/admin/acessos'),
 
   statusIntegracao: (): Promise<{ mcpAtivo: boolean; caminho: string }> => req('/integracao/status'),
   gerarChaveMcp: (): Promise<{ chave: string }> => req('/integracao/chave', { method: 'POST' }),
