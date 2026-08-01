@@ -237,6 +237,15 @@ select.input option {
   opacity: 0.35;
 }
 
+/* Queda antiga ("timed out" no Mapa TV): vermelho fica, mas para de piscar */
+.marcador-quieto::before {
+  animation: none;
+}
+.marcador-quieto::after {
+  animation: none;
+  opacity: 0.4;
+}
+
 /* Pino ampliado pro mural da TV — legível de longe, no fundo da sala do suporte */
 .marcador-grande {
   width: 26px;

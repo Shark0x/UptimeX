@@ -90,6 +90,8 @@ export interface ResumoStatusEmpresa {
   degradados: number;
   desconhecidos: number;
   links_dedicados: number;
+  /** Início da queda ainda aberta mais antiga da empresa (null = nada fora) */
+  offline_desde: string | null;
 }
 
 export interface NovaEmpresaPayload {

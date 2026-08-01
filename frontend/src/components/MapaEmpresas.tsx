@@ -46,6 +46,7 @@ export function MapaEmpresas({
   onSelecionarEmpresa,
   reenquadrarToken,
   rotularQuedas = false,
+  quedasRecentes,
 }: {
   empresas: Empresa[];
   foco: { latitude: number; longitude: number } | null;
@@ -58,6 +59,12 @@ export function MapaEmpresas({
   reenquadrarToken?: number;
   /** Mostra o nome fixo em cima das empresas offline (com anti-sobreposição). */
   rotularQuedas?: boolean;
+  /**
+   * IDs das empresas cuja queda é RECENTE: só elas piscam e ganham rótulo.
+   * Queda antiga ("timed out") vira pino vermelho quieto, sem nome.
+   * Sem esta prop, toda queda é tratada como recente.
+   */
+  quedasRecentes?: Set<number>;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<L.Map | null>(null);
@@ -141,9 +148,12 @@ export function MapaEmpresas({
     const tamanho = modoVitrine ? 26 : 14;
     comCoordenadas(empresas).forEach((e) => {
       const status = statusPorEmpresa[e.id] ?? 'sem';
+      // Queda antiga já foi vista pelo suporte: pino vermelho quieto, sem alarde
+      const recente = quedasRecentes ? quedasRecentes.has(e.id) : true;
+      const quieto = status === 'offline' && !recente ? ' marcador-quieto' : '';
       const icone = L.divIcon({
         className: '',
-        html: `<span class="marcador-empresa marcador-${status}${modoVitrine ? ' marcador-grande' : ''}"></span>`,
+        html: `<span class="marcador-empresa marcador-${status}${modoVitrine ? ' marcador-grande' : ''}${quieto}"></span>`,
         iconSize: [tamanho, tamanho],
         iconAnchor: [tamanho / 2, tamanho / 2],
       });
@@ -153,7 +163,7 @@ export function MapaEmpresas({
         () => aoSelecionarRef.current?.(e)
       );
 
-      if (rotularQuedas && status === 'offline') {
+      if (rotularQuedas && status === 'offline' && recente) {
         // Nome fixo em cima da empresa que caiu (Mapa TV). O declutter esconde os
         // que se sobreporiam; a lista lateral mantém todos legíveis.
         marcador.bindTooltip(escaparHtml(e.nome), {
@@ -177,7 +187,7 @@ export function MapaEmpresas({
     });
     // Espera o Leaflet posicionar os rótulos antes de medir a sobreposição
     requestAnimationFrame(() => declutterRef.current());
-  }, [empresas, statusPorEmpresa, rotularQuedas]);
+  }, [empresas, statusPorEmpresa, rotularQuedas, quedasRecentes]);
 
   // Enquadramento só quando o CONJUNTO de sedes muda de fato — atualização de
   // status a cada 15s não pode roubar o mapa de quem está navegando nele
@@ -209,7 +219,7 @@ export function MapaEmpresas({
   return (
     <div
       ref={divRef}
-      className="w-full h-full min-h-[380px] rounded-xl overflow-hidden border border-white/[0.06] relative z-0"
+      className="w-full h-full min-h-[240px] rounded-xl overflow-hidden border border-white/[0.06] relative z-0"
       aria-label="Mapa com a localização das empresas monitoradas"
     />
   );

@@ -30,7 +30,13 @@ empresasRouter.get('/resumo-status', async (_req, res) => {
       SUM(CASE WHEN d.status_atual = 'online'
                AND NOT (COALESCE(d.latencia_ms, 0) >= 150 OR COALESCE(d.perda_pct, 0) >= 2) THEN 1 ELSE 0 END) AS online,
       SUM(CASE WHEN d.status_atual = 'desconhecido' THEN 1 ELSE 0 END) AS desconhecidos,
-      (SELECT COUNT(*) FROM links_dedicados l WHERE l.empresa_id = e.id) AS links_dedicados
+      (SELECT COUNT(*) FROM links_dedicados l WHERE l.empresa_id = e.id) AS links_dedicados,
+      -- Desde quando a empresa está fora: início da queda ainda aberta mais antiga.
+      -- O Mapa TV usa pra "aposentar" o rótulo do nome após X minutos de queda.
+      (SELECT MIN(se.inicio) FROM status_eventos se
+        JOIN dispositivos d2 ON d2.id = se.dispositivo_id
+        WHERE d2.empresa_id = e.id AND d2.ativo = TRUE
+          AND se.status = 'offline' AND se.fim IS NULL) AS offline_desde
     FROM empresas e
     LEFT JOIN dispositivos d ON d.empresa_id = e.id AND d.ativo = TRUE
     GROUP BY e.id, e.nome, e.foto_url, e.endereco

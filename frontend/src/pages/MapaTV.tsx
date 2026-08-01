@@ -9,11 +9,27 @@ const DURACAO_BANNER_MS = 12000;
 // Mesmo ritmo do restante do painel: pinos e números vivos sem refresh manual
 const INTERVALO_ATUALIZACAO_MS = 15000;
 
+// Queda "aposenta" o rótulo do nome após esse tempo: o suporte já viu, então o
+// balão sai e sobra só o pino vermelho quieto (o painel lateral segue listando).
+const TIMEOUT_ROTULO_MIN = 40;
+
 interface ResumoEmpresa {
   total: number;
   online: number;
   offline: number;
   degradados: number;
+  links: number;
+  offlineDesde: string | null;
+}
+
+/** "há 12min" / "há 1h05" desde o início da queda. */
+function tempoDesde(iso: string | null, agora: Date): string {
+  if (!iso) return '';
+  const min = Math.floor((agora.getTime() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  return `há ${h}h${String(min % 60).padStart(2, '0')}`;
 }
 
 function tempoRelativo(ms: number): string {
@@ -74,6 +90,9 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const [emTelaCheia, setEmTelaCheia] = useState(false);
   const [reenquadrar, setReenquadrar] = useState(0);
   const [nomesNoMapa, setNomesNoMapa] = useState(true);
+  // Filtros do mural: só quem está fora do ar / só clientes com bloco /30 dedicado
+  const [soOffline, setSoOffline] = useState(false);
+  const [soDedicado, setSoDedicado] = useState(false);
   const [somAtivo, setSomAtivo] = useState(false);
   const [alerta, setAlerta] = useState<{ nome: string; dispositivo: string; em: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,6 +115,8 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
               online: Number(r.online),
               offline: Number(r.offline),
               degradados: Number(r.degradados),
+              links: Number(r.links_dedicados),
+              offlineDesde: r.offline_desde ?? null,
             },
           ])
         )
@@ -242,16 +263,46 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const corEstado =
     estado === 'offline' ? 'text-offline' : estado === 'degradado' ? 'text-warn' : estado === 'vazio' ? 'text-muted' : 'text-online';
 
+  // Filtros do mural aplicados ao mapa E à lista lateral (o placar segue global)
+  const empresasVisiveis = useMemo(
+    () =>
+      empresas.filter(
+        (e) =>
+          (!soOffline || statusPorEmpresa[e.id] === 'offline') &&
+          (!soDedicado || (resumos[e.id]?.links ?? 0) > 0)
+      ),
+    [empresas, statusPorEmpresa, resumos, soOffline, soDedicado]
+  );
+
   // Empresas fora do ar → lista lateral (pior primeiro). Substitui os balões
   // que se sobrepunham no mapa: aqui o nome é sempre legível, sem colisão.
   const quedas = useMemo(
     () =>
-      empresas
+      empresasVisiveis
         .filter((e) => statusPorEmpresa[e.id] === 'offline')
-        .map((e) => ({ empresa: e, offline: resumos[e.id]?.offline ?? 0, total: resumos[e.id]?.total ?? 0 }))
+        .map((e) => ({
+          empresa: e,
+          offline: resumos[e.id]?.offline ?? 0,
+          total: resumos[e.id]?.total ?? 0,
+          desde: resumos[e.id]?.offlineDesde ?? null,
+        }))
         .sort((a, b) => b.offline - a.offline || a.empresa.nome.localeCompare(b.empresa.nome)),
-    [empresas, statusPorEmpresa, resumos]
+    [empresasVisiveis, statusPorEmpresa, resumos]
   );
+
+  // Quedas RECENTES ainda piscam e mostram o nome no mapa; passado o timeout,
+  // viram pino vermelho quieto. Recalcula por minuto (não a cada segundo).
+  const minutoAtual = Math.floor(agora.getTime() / 60000);
+  const quedasRecentes = useMemo(() => {
+    const ids = new Set<number>();
+    Object.entries(resumos).forEach(([id, r]) => {
+      if (r.offline <= 0) return;
+      // Sem data de início (caso raro), trata como recente pra não silenciar queda nova
+      const min = r.offlineDesde ? minutoAtual - Math.floor(new Date(r.offlineDesde).getTime() / 60000) : 0;
+      if (min < TIMEOUT_ROTULO_MIN) ids.add(Number(id));
+    });
+    return ids;
+  }, [resumos, minutoAtual]);
 
   const localizadas = empresas.filter((e) => e.latitude != null && e.longitude != null).length;
 
@@ -267,7 +318,8 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
           <div className="hidden md:block h-9 w-px bg-white/10" />
           <div className="min-w-0">
             <p className="eyebrow">Mapa · Suporte</p>
-            <p className={`font-display font-semibold text-lg sm:text-2xl leading-none tracking-tight ${corEstado} ${estado === 'offline' ? 'animate-alert-blink' : ''}`}>
+            {/* Sem blink: vermelho sólido já comunica — piscar cansava na TV */}
+            <p className={`font-display font-semibold text-lg sm:text-2xl leading-none tracking-tight ${corEstado}`}>
               {fraseEstado}
             </p>
           </div>
@@ -337,14 +389,44 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
       {/* -------- mapa em tela cheia -------- */}
       <div className="flex-1 min-h-0 relative">
         <MapaEmpresas
-          empresas={empresas}
+          empresas={empresasVisiveis}
           foco={null}
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}
           reenquadrarToken={reenquadrar}
           rotularQuedas={nomesNoMapa}
+          quedasRecentes={quedasRecentes}
         />
+
+        {/* filtros do mural: só quedas / só clientes com bloco /30 dedicado */}
+        <div className="absolute top-4 left-4 z-[450] flex gap-2">
+          <button
+            onClick={() => setSoOffline((v) => !v)}
+            aria-pressed={soOffline}
+            className={`glass-panel px-3.5 py-1.5 text-xs font-mono rounded-lg border transition-all
+              ${soOffline
+                ? 'border-signal-500/70 text-offline shadow-glow-signal'
+                : 'border-white/10 text-muted hover:text-slate-100 hover:border-white/25'}`}
+          >
+            ● Offline
+          </button>
+          <button
+            onClick={() => setSoDedicado((v) => !v)}
+            aria-pressed={soDedicado}
+            className={`glass-panel px-3.5 py-1.5 text-xs font-mono rounded-lg border transition-all
+              ${soDedicado
+                ? 'border-signal-500/70 text-signal-400 shadow-glow-signal'
+                : 'border-white/10 text-muted hover:text-slate-100 hover:border-white/25'}`}
+          >
+            /30 dedicado
+          </button>
+          {(soOffline || soDedicado) && (
+            <span className="glass-panel px-3 py-1.5 text-[11px] font-mono text-muted rounded-lg border border-white/10">
+              {empresasVisiveis.length} de {empresas.length}
+            </span>
+          )}
+        </div>
 
         {/* painel lateral: quedas agora — nomes legíveis, sem sobrepor no mapa */}
         {quedas.length > 0 && (
@@ -360,7 +442,7 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
               <span className="stat-number text-offline text-lg tabular-nums leading-none">{quedas.length}</span>
             </div>
             <div className="overflow-y-auto divide-y divide-white/[0.05]">
-              {quedas.map(({ empresa, offline, total }) => (
+              {quedas.map(({ empresa, offline, total, desde }) => (
                 <button
                   key={empresa.id}
                   onClick={() => onAbrirEmpresa(empresa)}
@@ -370,8 +452,11 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
                     <span className="block font-display font-semibold text-slate-100 text-sm truncate">{empresa.nome}</span>
                     <span className="block text-[11px] font-mono text-muted truncate">{empresa.endereco || 'sem localização'}</span>
                   </span>
-                  <span className="text-[11px] font-mono text-offline tabular-nums shrink-0 mt-0.5">
-                    {offline}/{total} fora
+                  <span className="text-right shrink-0 mt-0.5">
+                    <span className="block text-[11px] font-mono text-offline tabular-nums">{offline}/{total} fora</span>
+                    {desde && (
+                      <span className="block text-[10px] font-mono text-muted tabular-nums">{tempoDesde(desde, agora)}</span>
+                    )}
                   </span>
                 </button>
               ))}
