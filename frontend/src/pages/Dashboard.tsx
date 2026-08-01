@@ -10,6 +10,18 @@ const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'];
 const TAMANHO_MAX = 4 * 1024 * 1024;
 const EMPRESAS_POR_PAGINA = 24;
 
+// Altura do painel do mapa: ajustável pelo operador (arrastando a alça) e
+// lembrada entre sessões. Sem isso o grid esticava o mapa até o fim da lista.
+const MAPA_ALTURA_CHAVE = 'netmonitor_mapa_altura';
+const MAPA_ALTURA_PADRAO = 520;
+const MAPA_ALTURA_MIN = 360;
+const MAPA_ALTURA_MAX = 860;
+
+function alturaMapaSalva(): number {
+  const v = Number(localStorage.getItem(MAPA_ALTURA_CHAVE));
+  return Number.isFinite(v) && v >= MAPA_ALTURA_MIN && v <= MAPA_ALTURA_MAX ? v : MAPA_ALTURA_PADRAO;
+}
+
 interface ResumoEmpresa {
   total: number;
   online: number;
@@ -65,6 +77,28 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
   const [soLinkDedicado, setSoLinkDedicado] = useState(false);
+  const [alturaMapa, setAlturaMapa] = useState(alturaMapaSalva);
+
+  // Arraste da alça inferior do mapa: ajusta a altura ao vivo e salva ao soltar.
+  // O Leaflet acompanha sozinho (ResizeObserver com invalidateSize no MapaEmpresas).
+  function iniciarRedimensionamento(ev: React.PointerEvent) {
+    ev.preventDefault();
+    const alturaInicial = alturaMapa;
+    const yInicial = ev.clientY;
+    function aoMover(e: PointerEvent) {
+      setAlturaMapa(Math.min(MAPA_ALTURA_MAX, Math.max(MAPA_ALTURA_MIN, alturaInicial + (e.clientY - yInicial))));
+    }
+    function aoSoltar() {
+      window.removeEventListener('pointermove', aoMover);
+      window.removeEventListener('pointerup', aoSoltar);
+      setAlturaMapa((v) => {
+        localStorage.setItem(MAPA_ALTURA_CHAVE, String(v));
+        return v;
+      });
+    }
+    window.addEventListener('pointermove', aoMover);
+    window.addEventListener('pointerup', aoSoltar);
+  }
 
   async function carregar() {
     // Duas chamadas fixas, não importa se são 5 ou 200 empresas:
@@ -161,8 +195,14 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
       </div>
 
       <div className="grid lg:grid-cols-12 gap-4 animate-fade-up">
-        {/* -------- Mapa: área de atuação -------- */}
-        <section className="lg:col-span-5 glass-panel hud-corners p-5 flex flex-col gap-3 overflow-hidden relative min-h-[520px]">
+        {/* -------- Mapa: área de atuação --------
+            self-start: o grid não estica mais o mapa até o fim da lista de empresas.
+            sticky: ele acompanha o scroll da lista sem sair da tela.
+            Altura ajustável pela alça de arraste (persistida). */}
+        <section
+          className="lg:col-span-5 glass-panel hud-corners p-5 pb-2 flex flex-col gap-3 overflow-hidden relative self-start lg:sticky lg:top-4 w-full"
+          style={{ height: alturaMapa }}
+        >
           <div className="flex items-center justify-between relative z-10">
             <div>
               <p className="eyebrow">Cobertura</p>
@@ -182,6 +222,15 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
               cadastre o endereço com a cidade onde você atua pra fixar o mapa nela
             </p>
           )}
+
+          <div
+            onPointerDown={iniciarRedimensionamento}
+            className="relative z-10 h-4 -mt-1 flex items-center justify-center cursor-ns-resize select-none touch-none group shrink-0"
+            title="Arraste para redimensionar o mapa"
+            aria-label="Redimensionar o mapa"
+          >
+            <span className="h-1 w-14 rounded-full bg-white/15 group-hover:bg-signal-500/60 transition-colors" />
+          </div>
         </section>
 
         {/* -------- Empresas -------- */}
