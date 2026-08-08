@@ -222,8 +222,8 @@ export function Admin() {
   }
 
   async function criar() {
-    if (!username.trim() || password.length < 6) {
-      setErro('Usuário obrigatório e senha com pelo menos 6 caracteres.');
+    if (!username.trim() || password.length < 10 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      setErro('Usuário obrigatório e senha com pelo menos 10 caracteres, incluindo letra e número.');
       return;
     }
     setSalvando(true);

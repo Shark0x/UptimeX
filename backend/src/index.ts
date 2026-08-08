@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import http from 'http';
 import path from 'path';
 import { Server as SocketServer } from 'socket.io';
@@ -30,9 +31,10 @@ const app = express();
 const server = http.createServer(app);
 
 // Backend só é alcançado pelo nginx do próprio compose (não tem porta publicada
-// no host), então confiar no X-Forwarded-For desse único salto é seguro e é o
-// que permite req.ip refletir o IP real do visitante, não o IP do container nginx.
-app.set('trust proxy', true);
+// no host), então confiamos em UM único salto de proxy — o valor `1` faz o
+// req.ip refletir o IP real do visitante SEM deixar o cliente forjar o
+// X-Forwarded-For pra burlar o rate-limit (o `true` permitia esse bypass).
+app.set('trust proxy', 1);
 
 // FRONTEND_URL aceita lista separada por vírgula. Além dela, libera o frontend
 // servido por IP privado da rede local (acesso pelo celular no dev), sempre na
@@ -65,6 +67,18 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: validarOrigem }));
 app.use(express.json({ limit: '100kb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Limitador global: rede de segurança contra flood/abuso. Teto alto de propósito
+// pra não atrapalhar o polling do painel (vários operadores/TVs, às vezes atrás
+// do mesmo IP). O login tem um limitador próprio bem mais estrito (10/15min).
+const limitadorGlobal = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: 'Muitas requisições em pouco tempo. Aguarde um instante.' },
+});
+app.use('/api', limitadorGlobal);
 
 app.use('/api/auth', authRouter);
 app.use('/api/usuarios', usuariosRouter);

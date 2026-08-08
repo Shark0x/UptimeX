@@ -7,7 +7,15 @@ export const loginSchema = z.object({
 
 export const criarUsuarioSchema = z.object({
   username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9_.-]+$/, 'Use apenas letras, números, ponto, hífen ou underscore'),
-  password: z.string().min(6).max(200),
+  // Mínimo 10 com pelo menos uma letra e um número — dificulta brute-force e
+  // senhas triviais. (O login não valida formato, só existência: senhas antigas
+  // continuam funcionando; a regra vale para novas contas.)
+  password: z
+    .string()
+    .min(10, 'A senha deve ter pelo menos 10 caracteres')
+    .max(200)
+    .regex(/[A-Za-z]/, 'A senha deve conter ao menos uma letra')
+    .regex(/[0-9]/, 'A senha deve conter ao menos um número'),
   role: z.enum(['admin', 'visualizador']),
 });
 
