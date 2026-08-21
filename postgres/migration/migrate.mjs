@@ -49,12 +49,23 @@ async function insertRows(client, table, rows, columns) {
     console.log(`${table}: coluna(s) ausente(s) no dump antigo; usando defaults: ${missingColumns.join(', ')}`);
   }
   const names = availableColumns.map(quote).join(', ');
-  for (const row of rows) {
-    const values = availableColumns.map((column) => row[column] ?? null);
-    const params = values.map((_, index) => `$${index + 1}`).join(', ');
-    await client.query(`INSERT INTO ${quote(table)} (${names}) VALUES (${params})`, values);
+  const batchSize = 500;
+  for (let offset = 0; offset < rows.length; offset += batchSize) {
+    const batch = rows.slice(offset, offset + batchSize);
+    const values = [];
+    const tuples = batch.map((row, rowIndex) => {
+      const placeholders = availableColumns.map((column, columnIndex) => {
+        values.push(row[column] ?? null);
+        return `$${rowIndex * availableColumns.length + columnIndex + 1}`;
+      });
+      return `(${placeholders.join(', ')})`;
+    });
+    await client.query(`INSERT INTO ${quote(table)} (${names}) VALUES ${tuples.join(', ')}`, values);
+    const processed = offset + batch.length;
+    if (processed === rows.length || processed % 100000 === 0) {
+      console.log(`${table}: ${processed}/${rows.length} registro(s)`);
+    }
   }
-  console.log(`${table}: ${rows.length} registro(s)`);
 }
 
 async function resetIdentity(client, table) {
