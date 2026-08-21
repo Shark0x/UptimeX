@@ -1,52 +1,63 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { api, setAuthToken, Usuario } from '../api';
+import { api, conectarSocket, desconectarSocket, Usuario } from '../api';
 
 interface AuthState {
   usuario: Usuario | null;
   isAdmin: boolean;
   carregando: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  atualizarAvatar: (avatar_url: string | null) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(() => {
-    const raw = localStorage.getItem('netmonitor_user');
-    return raw ? JSON.parse(raw) : null;
-  });
-  const [carregando, setCarregando] = useState(false);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
     function aoDeslogarForcado() {
       setUsuario(null);
-      localStorage.removeItem('netmonitor_user');
+      desconectarSocket();
     }
     window.addEventListener('netmonitor:unauthorized', aoDeslogarForcado);
+    api.sessaoAtual()
+      .then(({ user }) => {
+        setUsuario(user);
+        if (user) conectarSocket();
+      })
+      .catch(() => setUsuario(null))
+      .finally(() => setCarregando(false));
     return () => window.removeEventListener('netmonitor:unauthorized', aoDeslogarForcado);
   }, []);
 
   async function login(username: string, password: string) {
     setCarregando(true);
     try {
-      const { token, user } = await api.login(username, password);
-      setAuthToken(token);
-      localStorage.setItem('netmonitor_user', JSON.stringify(user));
+      const { user } = await api.login(username, password);
       setUsuario(user);
+      conectarSocket();
     } finally {
       setCarregando(false);
     }
   }
 
-  function logout() {
-    setAuthToken(null);
-    localStorage.removeItem('netmonitor_user');
-    setUsuario(null);
+  async function logout() {
+    try {
+      await api.logout();
+    } finally {
+      desconectarSocket();
+      setUsuario(null);
+    }
+  }
+
+  function atualizarAvatar(avatar_url: string | null) {
+    setUsuario((u) => (u ? { ...u, avatar_url } : u));
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, isAdmin: usuario?.role === 'admin', carregando, login, logout }}>
+    <AuthContext.Provider value={{ usuario, isAdmin: usuario?.role === 'admin', carregando, login, logout, atualizarAvatar }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,19 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from 'recharts';
-import {
-  api, Dispositivo, HeartbeatPayload, LIMIAR_PERDA_PCT, PingMetrica, StatusEvento, socket, saudeDispositivo,
+  api, Dispositivo, LIMIAR_PERDA_PCT, StatusEvento, saudeDispositivo,
 } from '../api';
 import { iconePorTipo } from './NetIcons';
-
-type Janela = 60 | 360 | 1440;
-
-const JANELAS: { valor: Janela; rotulo: string }[] = [
-  { valor: 60, rotulo: '1h' },
-  { valor: 360, rotulo: '6h' },
-  { valor: 1440, rotulo: '24h' },
-];
+import { PingHistoryChart } from './PingHistoryChart';
 
 function formatarDuracao(seg: number): string {
   if (seg < 60) return `${Math.max(seg, 0)}s`;
@@ -21,23 +11,6 @@ function formatarDuracao(seg: number): string {
   const h = Math.floor(seg / 3600);
   if (h < 24) return `${h}h ${Math.floor((seg % 3600) / 60)}min`;
   return `${Math.floor(h / 24)}d ${h % 24}h`;
-}
-
-function horaCurta(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function TooltipGrafico({ active, payload, label, unidade }: any) {
-  if (!active || !payload?.length) return null;
-  const v = payload[0].value;
-  return (
-    <div className="glass-panel px-3 py-2 !rounded-lg text-xs font-mono">
-      <p className="text-muted">{horaCurta(label)}</p>
-      <p className="text-slate-100 mt-0.5">
-        {v === null || v === undefined ? 'sem resposta' : `${Number(v).toFixed(unidade === '%' ? 1 : 0)} ${unidade}`}
-      </p>
-    </div>
-  );
 }
 
 function Stat({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
@@ -56,8 +29,6 @@ export function DeviceDrawer({
   dispositivo: Dispositivo;
   onClose: () => void;
 }) {
-  const [janela, setJanela] = useState<Janela>(60);
-  const [metricas, setMetricas] = useState<PingMetrica[]>([]);
   const [eventos, setEventos] = useState<StatusEvento[]>([]);
   const [, setTick] = useState(0);
 
@@ -65,29 +36,8 @@ export function DeviceDrawer({
   const Icone = iconePorTipo('roteador');
 
   useEffect(() => {
-    api.metricasDispositivo(dispositivo.id, janela).then(setMetricas).catch(() => setMetricas([]));
-  }, [dispositivo.id, janela]);
-
-  useEffect(() => {
     api.historicoDispositivo(dispositivo.id).then(setEventos).catch(() => setEventos([]));
   }, [dispositivo.id, dispositivo.status_atual]);
-
-  // Gráfico cresce em tempo real: cada heartbeat do socket vira um ponto novo
-  useEffect(() => {
-    const aoReceber = (p: HeartbeatPayload) => {
-      if (p.dispositivoId !== dispositivo.id || p.perdaPct === null) return;
-      setMetricas((prev) => [
-        ...prev.slice(-2000),
-        { latencia_ms: p.latenciaMs, perda_pct: p.perdaPct!, timestamp: String(p.timestamp) },
-      ]);
-    };
-    socket.on('heartbeat', aoReceber);
-    socket.on('status_mudou', aoReceber);
-    return () => {
-      socket.off('heartbeat', aoReceber);
-      socket.off('status_mudou', aoReceber);
-    };
-  }, [dispositivo.id]);
 
   // Relógio do uptime ("no ar há Xmin") avança sozinho
   useEffect(() => {
@@ -180,102 +130,11 @@ export function DeviceDrawer({
           </Stat>
         </div>
 
-        {/* seletor de janela */}
-        <div className="flex items-center justify-between">
-          <p className="eyebrow">Telemetria</p>
-          <div className="flex rounded-lg border border-white/10 overflow-hidden">
-            {JANELAS.map((j) => (
-              <button
-                key={j.valor}
-                onClick={() => setJanela(j.valor)}
-                className={`px-3 py-1 text-[11px] font-mono transition-colors ${
-                  janela === j.valor ? 'bg-signal-600/25 text-signal-400' : 'text-muted hover:text-slate-200'
-                }`}
-              >
-                {j.rotulo}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* gráfico de latência */}
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-muted font-mono mb-2">Latência (ms)</p>
-          <div className="h-36 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-            {metricas.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={metricas} margin={{ top: 4, right: 4, bottom: 0, left: -14 }}>
-                  <defs>
-                    <linearGradient id="gradLatencia" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF2B3A" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#FF2B3A" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis
-                    dataKey="timestamp"
-                    tickFormatter={horaCurta}
-                    tick={{ fill: '#82828E', fontSize: 9, fontFamily: '"IBM Plex Mono", monospace' }}
-                    axisLine={false} tickLine={false} minTickGap={40}
-                  />
-                  <YAxis
-                    tick={{ fill: '#82828E', fontSize: 9, fontFamily: '"IBM Plex Mono", monospace' }}
-                    axisLine={false} tickLine={false} width={44}
-                  />
-                  <Tooltip content={<TooltipGrafico unidade="ms" />} />
-                  <Area
-                    type="monotone" dataKey="latencia_ms" stroke="#FF4D5A" strokeWidth={1.6}
-                    fill="url(#gradLatencia)" connectNulls={false} isAnimationActive={false} dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-muted text-xs font-mono h-full flex items-center justify-center">
-                aguardando amostras de ping…
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* gráfico de perda */}
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-muted font-mono mb-2">Perda de pacotes (%)</p>
-          <div className="h-28 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-            {metricas.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={metricas} margin={{ top: 4, right: 4, bottom: 0, left: -14 }}>
-                  <defs>
-                    <linearGradient id="gradPerda" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FFB224" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#FFB224" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis
-                    dataKey="timestamp"
-                    tickFormatter={horaCurta}
-                    tick={{ fill: '#82828E', fontSize: 9, fontFamily: '"IBM Plex Mono", monospace' }}
-                    axisLine={false} tickLine={false} minTickGap={40}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    tick={{ fill: '#82828E', fontSize: 9, fontFamily: '"IBM Plex Mono", monospace' }}
-                    axisLine={false} tickLine={false} width={44}
-                  />
-                  <Tooltip content={<TooltipGrafico unidade="%" />} />
-                  <Area
-                    type="stepAfter" dataKey="perda_pct" stroke="#FFB224" strokeWidth={1.4}
-                    fill="url(#gradPerda)" isAnimationActive={false} dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-muted text-xs font-mono h-full flex items-center justify-center">
-                aguardando amostras de ping…
-              </p>
-            )}
-          </div>
-        </div>
+        <PingHistoryChart
+          deviceId={dispositivo.id}
+          title="Histórico do dispositivo"
+          compact
+        />
 
         {/* resumo de eventos */}
         <div className="grid grid-cols-2 gap-2.5">

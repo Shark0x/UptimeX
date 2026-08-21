@@ -1,4 +1,4 @@
-import { pool } from '../db/pool';
+import { workerQuery } from '../db/pool';
 import { obterConfig } from './configService';
 import { enviarTelegram, escaparHtml, telegramConfigurado } from './telegramService';
 
@@ -40,7 +40,7 @@ function estadoDe(id: number): EstadoAlerta {
 
 async function nomeDaEmpresa(empresaId: number): Promise<string> {
   try {
-    const [rows]: any = await pool.query(`SELECT nome FROM empresas WHERE id = ?`, [empresaId]);
+    const [rows]: any = await workerQuery(`SELECT nome FROM empresas WHERE id = ?`, [empresaId]);
     return rows[0]?.nome ?? `empresa ${empresaId}`;
   } catch {
     return `empresa ${empresaId}`;
@@ -71,7 +71,7 @@ export function notificarTransicao(d: DispositivoAlerta, novoStatus: 'online' | 
       e.timerQueda = null;
       // Confirma no banco: só alerta se AINDA estiver offline após o atraso
       try {
-        const [rows]: any = await pool.query(`SELECT status_atual FROM dispositivos WHERE id = ?`, [d.id]);
+        const [rows]: any = await workerQuery(`SELECT status_atual FROM dispositivos WHERE id = ?`, [d.id]);
         if (rows[0]?.status_atual !== 'offline') return;
       } catch {
         return;
@@ -83,7 +83,7 @@ export function notificarTransicao(d: DispositivoAlerta, novoStatus: 'online' | 
           `${escaparHtml(d.nome)} (<code>${escaparHtml(d.ip)}</code>)\n` +
           `sem resposta há ${duracaoLegivel(atrasoMs())} · ${hora(new Date())}`
       );
-      console.log(`[alerta] queda de "${d.nome}" ${ok ? 'enviada ao Telegram' : 'NAO enviada (falha no Telegram)'}`);
+      console.log(`[alerta] queda id=${d.id} ${ok ? 'enviada ao Telegram' : 'NAO enviada (falha no Telegram)'}`);
     }, atrasoMs());
   } else {
     if (e.timerQueda) {
@@ -100,7 +100,7 @@ export function notificarTransicao(d: DispositivoAlerta, novoStatus: 'online' | 
             `${escaparHtml(d.nome)} (<code>${escaparHtml(d.ip)}</code>)\n` +
             `ficou ${duracao} fora do ar · ${hora(new Date())}`
         );
-        console.log(`[alerta] recuperação de "${d.nome}" ${ok ? 'enviada ao Telegram' : 'NAO enviada (falha no Telegram)'}`);
+        console.log(`[alerta] recuperacao id=${d.id} ${ok ? 'enviada ao Telegram' : 'NAO enviada (falha no Telegram)'}`);
       });
     }
     e.inicioQueda = null;

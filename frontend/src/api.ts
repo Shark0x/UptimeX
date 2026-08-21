@@ -3,40 +3,66 @@ import { io } from 'socket.io-client';
 // Deriva o backend do host atual: abrindo pelo IP da máquina (ex: celular na
 // mesma rede), a API segue junto em vez de apontar pro "localhost" do aparelho.
 const HOST_ATUAL = window.location.hostname || 'localhost';
-const API_BASE = import.meta.env.VITE_API_URL || `http://${HOST_ATUAL}:4000/api`;
-export const STATIC_BASE = API_BASE.replace(/\/api\/?$/, '');
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || `http://${HOST_ATUAL}:4000`;
+const PROTOCOLO_ATUAL = window.location.protocol === 'https:' ? 'https:' : 'http:';
+const API_BASE = import.meta.env.VITE_API_URL || `${PROTOCOLO_ATUAL}//${HOST_ATUAL}:4000/api`;
+export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || `${PROTOCOLO_ATUAL}//${HOST_ATUAL}:4000`;
 
-export const socket = io(SOCKET_URL, { autoConnect: false });
+export const socket = io(SOCKET_URL, { autoConnect: false, withCredentials: true });
 
-let authToken: string | null = localStorage.getItem('netmonitor_token');
+// Remove credenciais deixadas por versoes anteriores. A sessao atual vive em
+// cookie HttpOnly e, portanto, nao pode ser lida nem roubada pelo JavaScript.
+localStorage.removeItem('netmonitor_token');
+localStorage.removeItem('netmonitor_user');
 
-export function setAuthToken(token: string | null) {
-  authToken = token;
-  if (token) {
-    localStorage.setItem('netmonitor_token', token);
-    socket.auth = { token };
-    socket.connect();
-  } else {
-    localStorage.removeItem('netmonitor_token');
-    socket.disconnect();
-  }
+export function conectarSocket() {
+  if (!socket.connected) socket.connect();
 }
 
-if (authToken) {
-  socket.auth = { token: authToken };
-  socket.connect();
+export function desconectarSocket() {
+  socket.disconnect();
+}
+
+function lerCookie(nome: string): string {
+  const prefixo = `${encodeURIComponent(nome)}=`;
+  const parte = document.cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(prefixo));
+  return parte ? decodeURIComponent(parte.slice(prefixo.length)) : '';
+}
+
+/** Busca uma foto tenant pela sessão HttpOnly, sem criar uma URL pública. */
+export async function buscarFotoEmpresa(empresaId: number): Promise<Blob | null> {
+  const res = await fetch(`${API_BASE}/empresas/${empresaId}/foto`, {
+    credentials: 'include',
+  });
+  if (res.status === 401) {
+    window.dispatchEvent(new Event('netmonitor:unauthorized'));
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Erro ao carregar foto: ${res.status}`);
+  return res.blob();
+}
+
+export async function buscarMeuAvatar(): Promise<Blob | null> {
+  const res = await fetch(`${API_BASE}/auth/me/avatar`, { credentials: 'include' });
+  if (res.status === 401) window.dispatchEvent(new Event('netmonitor:unauthorized'));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Erro ao carregar avatar: ${res.status}`);
+  return res.blob();
 }
 
 async function req(path: string, options: RequestInit = {}) {
   const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const method = String(options.method || 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = lerCookie('netmonitor_csrf');
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...options,
+      credentials: 'include',
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
@@ -56,17 +82,19 @@ async function req(path: string, options: RequestInit = {}) {
   return res.json();
 }
 
-export type Papel = 'admin' | 'visualizador';
+export type Papel = 'admin' | 'operador' | 'visualizador';
 
 export interface Usuario {
   id: number;
   username: string;
   role: Papel;
+  avatar_url?: string | null;
 }
 
 export interface UsuarioListado extends Usuario {
   ativo: boolean;
   criado_em: string;
+  empresa_ids: number[];
 }
 
 export interface Empresa {
@@ -107,16 +135,10 @@ export interface NovaEmpresaPayload {
 export async function geocodificarEndereco(
   endereco: string
 ): Promise<{ latitude: number; longitude: number; rotulo: string } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=pt-BR&q=${encodeURIComponent(endereco)}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) return null;
-  const lista = await res.json();
-  if (!Array.isArray(lista) || lista.length === 0) return null;
-  return {
-    latitude: Number(lista[0].lat),
-    longitude: Number(lista[0].lon),
-    rotulo: String(lista[0].display_name || endereco),
+  const resposta = await req(`/map/geocode?q=${encodeURIComponent(endereco)}`) as {
+    resultado: { latitude: number; longitude: number; rotulo: string } | null;
   };
+  return resposta.resultado;
 }
 
 export interface Dispositivo {
@@ -126,7 +148,7 @@ export interface Dispositivo {
   ip: string;
   fabricante: string;
   metodo_monitoramento: 'snmp' | 'ping' | 'snmp+ping';
-  comunidade_snmp: string;
+  comunidade_snmp_configurada: boolean;
   porta_snmp: number;
   intervalo_polling_seg: number;
   status_atual: 'online' | 'offline' | 'desconhecido';
@@ -140,6 +162,18 @@ export interface PingMetrica {
   latencia_ms: number | null;
   perda_pct: number;
   timestamp: string;
+}
+
+export type PingHistoryRange = '24h' | '7d' | '30d' | '90d' | '1y';
+
+export interface PingHistoryPoint {
+  timestamp: string;
+  avg_latency: number | null;
+  min_latency: number | null;
+  max_latency: number | null;
+  packet_loss_pct: number;
+  uptime_pct: number;
+  degraded_pct: number;
 }
 
 /** Payload dos eventos socket `heartbeat` e `status_mudou` */
@@ -247,8 +281,17 @@ export interface AcessoItem {
 }
 
 export const api = {
-  login: (username: string, password: string): Promise<{ token: string; user: Usuario }> =>
+  login: (username: string, password: string): Promise<{ user: Usuario }> =>
     req('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  sessaoAtual: (): Promise<{ user: Usuario | null }> => req('/auth/me'),
+  logout: (): Promise<null> => req('/auth/logout', { method: 'POST' }),
+  alterarMinhaSenha: (senha_atual: string, nova_senha: string): Promise<{ ok: boolean }> =>
+    req('/auth/password', { method: 'PUT', body: JSON.stringify({ senha_atual, nova_senha }) }),
+  enviarAvatar: (arquivo: File): Promise<{ avatar_url: string }> => {
+    const fd = new FormData();
+    fd.append('avatar', arquivo);
+    return req('/auth/me/avatar', { method: 'POST', body: fd });
+  },
 
   listarEmpresas: (): Promise<Empresa[]> => req('/empresas'),
   criarEmpresa: (payload: NovaEmpresaPayload) => {
@@ -271,6 +314,10 @@ export const api = {
     req(`/dispositivos/${id}/historico`),
   metricasDispositivo: (id: number, minutos: number): Promise<PingMetrica[]> =>
     req(`/dispositivos/${id}/metricas?minutos=${minutos}`),
+  historicoPingDispositivo: (id: number, range: PingHistoryRange): Promise<PingHistoryPoint[]> =>
+    req(`/devices/${id}/ping-history?range=${range}`),
+  historicoPingEmpresa: (id: number, range: PingHistoryRange): Promise<PingHistoryPoint[]> =>
+    req(`/empresas/${id}/ping-history?range=${range}`),
   criarDispositivo: (payload: Partial<Dispositivo>) =>
     req('/dispositivos', { method: 'POST', body: JSON.stringify(payload) }),
   editarDispositivo: (id: number, payload: Partial<Dispositivo>) =>
@@ -323,12 +370,23 @@ export const api = {
   }> => req('/admin/overview'),
   acessos: (): Promise<AcessoItem[]> => req('/admin/acessos'),
 
-  statusIntegracao: (): Promise<{ mcpAtivo: boolean; caminho: string }> => req('/integracao/status'),
-  gerarChaveMcp: (): Promise<{ chave: string }> => req('/integracao/chave', { method: 'POST' }),
+  statusIntegracao: (): Promise<{
+    mcpAtivo: boolean;
+    caminho: string;
+    escopo: 'global' | 'empresa' | null;
+    empresaId: number | null;
+    expiresAt: string | null;
+  }> => req('/integracao/status'),
+  gerarChaveMcp: (payload: { empresa_id?: number; global: boolean; expires_days?: number }): Promise<{ chave: string }> =>
+    req('/integracao/chave', { method: 'POST', body: JSON.stringify(payload) }),
   revogarChaveMcp: () => req('/integracao/chave', { method: 'DELETE' }),
 
   listarUsuarios: (): Promise<UsuarioListado[]> => req('/usuarios'),
-  criarUsuario: (username: string, password: string, role: Papel) =>
-    req('/usuarios', { method: 'POST', body: JSON.stringify({ username, password, role }) }),
+  criarUsuario: (username: string, password: string, role: Papel, empresa_ids: number[] = []) =>
+    req('/usuarios', { method: 'POST', body: JSON.stringify({ username, password, role, empresa_ids }) }),
+  atualizarEmpresasUsuario: (id: number, empresa_ids: number[]) =>
+    req(`/usuarios/${id}/empresas`, { method: 'PUT', body: JSON.stringify({ empresa_ids }) }),
   removerUsuario: (id: number) => req(`/usuarios/${id}`, { method: 'DELETE' }),
+  redefinirSenhaUsuario: (id: number, nova_senha: string) =>
+    req(`/usuarios/${id}/password`, { method: 'PUT', body: JSON.stringify({ nova_senha }) }),
 };

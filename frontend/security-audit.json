@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-08-19",
+  "status": "pending_remediation",
+  "source": {
+    "tool": "npm audit",
+    "project": "frontend",
+    "packageFile": "frontend/package.json",
+    "lockFile": "frontend/package-lock.json"
+  },
+  "summary": {
+    "affectedPackages": 5,
+    "critical": 0,
+    "high": 4,
+    "moderate": 1,
+    "productionAffectedPackages": 1,
+    "note": "A contagem representa pacotes afetados; alguns pacotes possuem mais de um aviso de seguranca. Playwright nao esta entre os pacotes afetados."
+  },
+  "findings": [
+    {
+      "package": "socket.io-parser",
+      "currentVersion": "4.2.6",
+      "severity": "high",
+      "dependencyType": "indirect",
+      "dependencyPath": "socket.io-client > socket.io-parser",
+      "environment": "production",
+      "issue": "Um pacote Socket.IO especialmente preparado pode manter anexos binarios em memoria e causar esgotamento de memoria ou indisponibilidade.",
+      "patchedVersion": "4.2.7",
+      "recommendedVersion": "4.2.7",
+      "breakingChangeExpected": false,
+      "priority": 1,
+      "status": "pending",
+      "advisories": [
+        {
+          "id": "GHSA-2m8v-j782-fhvr",
+          "url": "https://github.com/advisories/GHSA-2m8v-j782-fhvr"
+        }
+      ]
+    },
+    {
+      "package": "postcss",
+      "currentVersion": "8.5.16",
+      "severity": "high",
+      "dependencyType": "direct_dev_dependency",
+      "environment": "development_and_build",
+      "issue": "CSS com sourceMappingURL controlado pode provocar leitura indevida de arquivos .map durante o processamento.",
+      "patchedVersion": "8.5.23",
+      "recommendedVersion": "8.5.26",
+      "breakingChangeExpected": false,
+      "priority": 2,
+      "status": "pending",
+      "advisories": [
+        {
+          "id": "GHSA-r28c-9q8g-f849",
+          "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849"
+        },
+        {
+          "id": "GHSA-fxqj-rqcc-2cmp",
+          "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp"
+        }
+      ]
+    },
+    {
+      "package": "nanoid",
+      "currentVersion": "3.3.15",
+      "severity": "high",
+      "dependencyType": "indirect",
+      "dependencyPath": "postcss > nanoid",
+      "environment": "development_and_build",
+      "issue": "Entradas de tamanho zero ou negativo em determinados geradores podem causar loop infinito.",
+      "patchedVersion": "3.3.18",
+      "recommendedVersion": "3.3.18",
+      "breakingChangeExpected": false,
+      "priority": 2,
+      "status": "pending",
+      "advisories": [
+        {
+          "id": "GHSA-28wg-ghj8-5hjv",
+          "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv"
+        },
+        {
+          "id": "GHSA-2v37-7h3g-55p8",
+          "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8"
+        }
+      ]
+    },
+    {
+      "package": "vite",
+      "currentVersion": "5.4.21",
+      "severity": "high",
+      "dependencyType": "direct_dev_dependency",
+      "environment": "development",
+      "issue": "O servidor de desenvolvimento possui falhas de exposicao de arquivos e riscos especificos do Windows, incluindo divulgacao de hash NTLMv2 em determinadas condicoes.",
+      "minimumPatchedVersionForListedAdvisories": "6.4.3",
+      "npmAuditSuggestedVersion": "8.2.1",
+      "breakingChangeExpected": true,
+      "currentExposure": "O script de desenvolvimento usa vite --host e pode expor o servidor para a rede local.",
+      "temporaryMitigation": "Usar vite --host 127.0.0.1 quando o acesso pela rede local nao for necessario.",
+      "priority": 3,
+      "status": "pending_manual_review",
+      "advisories": [
+        {
+          "id": "GHSA-4w7w-66w2-5vf9",
+          "url": "https://github.com/advisories/GHSA-4w7w-66w2-5vf9"
+        },
+        {
+          "id": "GHSA-v6wh-96g9-6wx3",
+          "url": "https://github.com/advisories/GHSA-v6wh-96g9-6wx3"
+        },
+        {
+          "id": "GHSA-fx2h-pf6j-xcff",
+          "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff"
+        }
+      ]
+    },
+    {
+      "package": "esbuild",
+      "currentVersion": "0.21.5",
+      "severity": "moderate",
+      "dependencyType": "indirect",
+      "dependencyPath": "vite > esbuild",
+      "environment": "development",
+      "issue": "CORS permissivo no servidor de desenvolvimento pode permitir que uma pagina maliciosa leia conteudo servido localmente.",
+      "patchedVersion": "0.25.0",
+      "recommendedAction": "Corrigir por meio da atualizacao do Vite e validar a compatibilidade do projeto.",
+      "breakingChangeExpected": true,
+      "priority": 3,
+      "status": "pending_manual_review",
+      "advisories": [
+        {
+          "id": "GHSA-67mh-4wv8-2f99",
+          "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99"
+        }
+      ]
+    }
+  ],
+  "remediationPlan": [
+    {
+      "phase": 1,
+      "description": "Aplicar atualizacoes sem mudanca principal para socket.io-parser, postcss e nanoid.",
+      "suggestedCommand": "npm audit fix",
+      "requiresReview": false
+    },
+    {
+      "phase": 2,
+      "description": "Limitar o servidor Vite ao computador local quando acesso pela rede nao for necessario.",
+      "suggestedChange": "Alterar o script dev de vite --host para vite --host 127.0.0.1.",
+      "requiresReview": true
+    },
+    {
+      "phase": 3,
+      "description": "Atualizar Vite e esbuild, verificando requisitos do Node e possiveis mudancas incompatíveis.",
+      "requiresReview": true
+    },
+    {
+      "phase": 4,
+      "description": "Validar a correcao.",
+      "commands": [
+        "npm run build",
+        "npm run test:e2e",
+        "npm audit",
+        "npm audit --omit=dev"
+      ],
+      "requiresReview": false
+    }
+  ]
+}

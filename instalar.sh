@@ -13,62 +13,86 @@ command -v docker >/dev/null 2>&1 || falha "Docker nao encontrado. Instale: http
 docker compose version >/dev/null 2>&1 || falha "Plugin 'docker compose' nao encontrado (instale o docker-compose-plugin)."
 [ -f docker-compose.yml ] || falha "Execute este script na raiz do projeto (onde esta o docker-compose.yml)."
 
-# ---- 2. .env com senhas geradas ----
+# ---- 2. .env com TODOS os segredos gerados ----
+# O compose exige (com :?) as 3 senhas do Postgres (owner/app/worker), a chave de
+# criptografia e a senha do admin. Geramos todas aleatorias — sem placeholders.
+# MYSQL_ROOT_PASSWORD so e usado na migracao opcional (profile 'migration').
 if [ ! -f .env ]; then
-  gerar() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
-  MYSQL_PASS="$(gerar 24)"
-  JWT="$(gerar 48)"
-  sed -e "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${MYSQL_PASS}|" \
-      -e "s|^JWT_SECRET=.*|JWT_SECRET=${JWT}|" \
+  [ -f .env.docker.example ] || falha "Falta o .env.docker.example (modelo do .env)."
+  # so letras+numeros: seguro pra passar pelo sed sem escapar caracteres especiais
+  gerar() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
+  # senha do admin com maiuscula+minuscula+numero garantidos (regra de senha forte)
+  gerar_admin() { printf 'Ax7%s' "$(gerar 21)"; }
+
+  MYSQL_ROOT_PASSWORD="$(gerar 28)"
+  POSTGRES_PASSWORD="$(gerar 28)"
+  POSTGRES_APP_PASSWORD="$(gerar 28)"
+  POSTGRES_WORKER_PASSWORD="$(gerar 28)"
+  DATA_ENCRYPTION_KEY="$(gerar 48)"
+  SEED_ADMIN_PASSWORD="$(gerar_admin)"
+
+  sed -e "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}|" \
+      -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|" \
+      -e "s|^POSTGRES_APP_PASSWORD=.*|POSTGRES_APP_PASSWORD=${POSTGRES_APP_PASSWORD}|" \
+      -e "s|^POSTGRES_WORKER_PASSWORD=.*|POSTGRES_WORKER_PASSWORD=${POSTGRES_WORKER_PASSWORD}|" \
+      -e "s|^DATA_ENCRYPTION_KEY=.*|DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}|" \
+      -e "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}|" \
       .env.docker.example > .env
-  verde ".env criado com senhas aleatorias (MYSQL_ROOT_PASSWORD e JWT_SECRET)."
+  chmod 600 .env 2>/dev/null || true
+
+  # Confere que nenhum "troque_por" sobrou (evita subir com placeholder inseguro)
+  if grep -q 'troque_por' .env; then
+    falha "Sobrou algum placeholder no .env. Confira o .env.docker.example e rode de novo."
+  fi
+  verde ".env criado com TODOS os segredos aleatorios (Postgres, criptografia, admin)."
+  echo "   Guarde a senha do admin mostrada no final desta instalacao."
   echo "   Quer alertas no Telegram? Edite o .env depois e rode: docker compose restart backend"
 else
-  echo ".env ja existe — mantendo o atual."
+  echo ".env ja existe — mantendo o atual (nenhum segredo foi sobrescrito)."
 fi
 
 # ---- 3. build + subir ----
 verde "Construindo e subindo os containers (a primeira vez demora alguns minutos)..."
 docker compose up -d --build
 
-# ---- 4. aguardar o backend (que tambem cria/migra o banco) ----
+# ---- 4. aguardar o backend (o schema/RLS vem do container Postgres) ----
 printf 'Aguardando backend e banco'
 ok=""
 for i in $(seq 1 60); do
-  if docker compose logs backend 2>/dev/null | grep -q "rodando na porta 4000"; then ok=1; break; fi
+  if docker compose logs backend 2>/dev/null | grep -q "backend rodando em"; then ok=1; break; fi
   printf '.'; sleep 2
 done
 echo
 [ -n "$ok" ] || falha "Backend nao subiu em 120s. Investigue com: docker compose logs backend"
-verde "Backend no ar — banco criado e migrado."
+verde "Backend no ar — schema/RLS criados pelo container Postgres e admin semeado."
 
-# ---- 5. restaurar dados trazidos de casa (opcional) ----
+# ---- 5. dados de uma instalacao MySQL antiga (opcional) ----
 if [ -f backup-netmonitor.sql ]; then
-  printf 'Restaurar os dados do backup-netmonitor.sql (empresas, dispositivos, usuarios)? [S/n] '
-  read -r resp || resp=S
-  case "${resp:-S}" in
-    n|N) echo "Backup ignorado — banco comeca vazio." ;;
-    *)
-      docker compose exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" netmonitor' < backup-netmonitor.sql
-      docker compose restart backend >/dev/null
-      verde "Dados restaurados! Use os mesmos logins de casa."
-      if [ -d backend/uploads ] && [ -n "$(ls -A backend/uploads 2>/dev/null)" ]; then
-        docker compose cp backend/uploads/. backend:/app/uploads/ >/dev/null && verde "Fotos das empresas copiadas."
-      fi
-      ;;
-  esac
+  echo
+  verde "Encontrei backup-netmonitor.sql (dados de uma instalacao MySQL antiga)."
+  echo "   A migracao MySQL -> PostgreSQL roda pelo migrador dedicado (profile 'migration'),"
+  echo "   nao por este instalador. Passo a passo em DEPLOY.md, secao \"Levando os dados atuais\":"
+  echo "     1) preencha MYSQL_ROOT_PASSWORD no .env"
+  echo "     2) docker compose --profile migration up -d mysql  (e restaure o dump nele)"
+  echo "     3) docker compose --profile migration run --rm postgres-migrator"
 fi
 
 # ---- 6. resumo ----
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 PORTA="$(grep -E '^APP_PORT=' .env | cut -d= -f2 || true)"
+ADMIN_PASS="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
 verde "============================================"
 verde " uptimeX instalado e rodando!"
 echo  " Acesse:  http://${IP:-IP_DA_MAQUINA}:${PORTA:-8080}"
 echo  " Status:  docker compose ps"
 echo  " Logs:    docker compose logs -f backend"
-if docker compose logs backend 2>/dev/null | grep -q "CONTA ADMIN"; then
-  echo " Senha inicial do admin (anote, aparece so uma vez):"
-  docker compose logs backend | grep -B1 -A3 "CONTA ADMIN" | tail -5
+echo
+if docker compose logs backend 2>/dev/null | grep -qi "admin ja existente"; then
+  echo " Banco ja tinha um admin — use o login de sempre."
+else
+  echo " Login inicial:"
+  echo "   usuario: admin"
+  echo "   senha:   ${ADMIN_PASS:-veja SEED_ADMIN_PASSWORD no .env}"
+  echo "   (troque a senha no menu de perfil apos o primeiro login)"
 fi
 verde "============================================"

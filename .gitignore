@@ -10,10 +10,27 @@ dist/
 
 # Dados locais: backups do banco e fotos enviadas
 backup*.sql
+/netmonitor-*.sql
+/netmonitor-*.sql.gz
+/netmonitor-*.tar.gz
+/uptimex-*.tar.gz
+/uploads-*.tar.gz
 backend/uploads/
 
 # Scripts temporários de teste
 tmp_*.ts
 
-# Ferramentas locais do Claude Code (configuração pessoal da máquina)
+# Ferramentas locais de agentes/IA e grafo de conhecimento (config pessoal e
+# artefatos gerados — não versionar)
 .claude/
+.agents/
+.alethe/
+.codex/
+graphify-out/
+AGENTS.md
+CLAUDE.md
+
+# Local visual-test artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/

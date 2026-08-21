@@ -1,5 +1,5 @@
 # ---------- build ----------
-FROM node:20-bookworm-slim AS build
+FROM node:20.19-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -8,7 +8,7 @@ COPY src ./src
 RUN npm run build
 
 # ---------- runtime ----------
-FROM node:20-bookworm-slim
+FROM node:20.19-bookworm-slim
 ENV NODE_ENV=production TZ=America/Sao_Paulo
 # iputils-ping: o motor de monitoramento executa o ping do sistema
 RUN apt-get update \
@@ -18,7 +18,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
-RUN mkdir -p uploads/empresas
+RUN mkdir -p uploads/empresas && chown -R node:node /app
+USER node
 EXPOSE 4000
-# Migra o banco (cria tabelas/admin) com retry até o MySQL aceitar conexões, depois sobe a API
-CMD ["sh", "-c", "for i in $(seq 1 30); do node dist/db/migrate.js && break || (echo 'aguardando MySQL...' && sleep 2); done && node dist/index.js"]
+# O schema/roles/RLS vêm do container Postgres (postgres/init/*). O bootstrap espera
+# o banco aceitar conexões e semeia o admin inicial (auth_seed_admin); depois sobe a API.
+CMD ["sh", "-c", "node dist/db/bootstrap.js || exit 1; unset SEED_ADMIN_PASSWORD; exec node dist/index.js"]

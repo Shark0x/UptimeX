@@ -1,13 +1,16 @@
 {
   "name": "netmonitor-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Motor de monitoramento SNMP/ICMP multi-empresa - substituto moderno do Dude",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && node -e \"require('fs').copyFileSync('src/db/schema.sql','dist/db/schema.sql')\"",
+    "build": "tsc && node -e \"const fs=require('fs');fs.copyFileSync('src/db/schema.sql','dist/db/schema.sql');fs.cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
     "start": "node dist/index.js",
-    "migrate": "node -e \"require('./dist/db/migrate.js')\""
+    "bootstrap": "node dist/db/bootstrap.js",
+    "migrate": "node -e \"require('./dist/db/migrate.js')\"",
+    "seed:antenas": "tsx src/db/seedAntenasDemo.ts",
+    "test": "npm run build && node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -15,13 +18,13 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.5.2",
-    "geoip-lite": "^1.4.10",
     "helmet": "^8.2.0",
-    "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "mysql2": "^3.10.0",
     "net-snmp": "^3.11.2",
+    "pg": "^8.23.0",
     "ping": "^0.4.4",
     "socket.io": "^4.7.5",
     "zod": "^4.4.3"
@@ -30,10 +33,9 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/geoip-lite": "^1.4.4",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^20.14.9",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.2"
   },

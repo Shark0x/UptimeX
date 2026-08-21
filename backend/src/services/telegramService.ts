@@ -21,20 +21,25 @@ export function escaparHtml(texto: string): string {
 
 export async function enviarTelegram(textoHtml: string): Promise<boolean> {
   if (!telegramConfigurado()) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(`https://api.telegram.org/bot${token()}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId(), text: textoHtml, parse_mode: 'HTML' }),
+      signal: controller.signal,
     });
     if (!res.ok) {
-      const corpo = await res.text().catch(() => '');
-      console.error(`Telegram recusou o envio (${res.status}): ${corpo.slice(0, 200)}`);
+      await res.body?.cancel().catch(() => undefined);
+      console.error(`Telegram recusou o envio (HTTP ${res.status}).`);
       return false;
     }
     return true;
-  } catch (err) {
-    console.error('Falha ao falar com a API do Telegram:', err);
+  } catch {
+    console.error('Falha ao falar com a API do Telegram.');
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }

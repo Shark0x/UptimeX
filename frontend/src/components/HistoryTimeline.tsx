@@ -24,7 +24,7 @@ export function HistoryTimeline({ dispositivos }: { dispositivos: Dispositivo[] 
   const tempoTotalOffline = quedas.reduce((acc, e) => acc + (e.duracao_segundos || 0), 0);
 
   return (
-    <div className="grid grid-cols-[220px_1fr] gap-4 h-full">
+    <div className="grid min-h-[340px] grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]">
       <div className="glass-panel p-2 overflow-y-auto">
         <p className="text-[10px] uppercase tracking-widest text-muted font-mono px-2 py-1.5">Dispositivos</p>
         {dispositivos.map((d) => (

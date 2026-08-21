@@ -9,6 +9,7 @@ import { HistoryTimeline } from '../components/HistoryTimeline';
 import { AuditLog } from '../components/AuditLog';
 import { DeviceDrawer } from '../components/DeviceDrawer';
 import { LinksDedicados } from '../components/LinksDedicados';
+import { PingHistoryChart } from '../components/PingHistoryChart';
 
 type Aba = 'status' | 'topologia' | 'links' | 'historico' | 'auditoria';
 
@@ -98,7 +99,7 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-w-0 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={aoVoltar} className="text-muted hover:text-signal-400 text-sm font-mono transition-colors shrink-0">
@@ -120,12 +121,12 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
         </div>
       </header>
 
-      <nav className="flex gap-1 mb-4 border-b border-white/[0.07]">
+      <nav className="mb-4 flex max-w-full gap-1 overflow-x-auto overscroll-x-contain border-b border-white/[0.07]">
         {abas.map((a) => (
           <button
             key={a.id}
             onClick={() => setAba(a.id)}
-            className={`px-4 py-2 text-sm font-display border-b-2 transition-all duration-150 ${
+            className={`shrink-0 px-4 py-2 text-sm font-display border-b-2 transition-all duration-150 ${
               aba === a.id
                 ? 'border-signal-500 text-signal-400'
                 : 'border-transparent text-muted hover:text-slate-300'
@@ -136,7 +137,7 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
         ))}
       </nav>
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 min-w-0 flex-1">
         {aba === 'status' && (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3 animate-fade-up">
             {dispositivos.map((d) => (
@@ -166,7 +167,18 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
           />
         )}
         {aba === 'links' && <LinksDedicados empresaId={empresa.id} podeEditar={isAdmin} />}
-        {aba === 'historico' && <HistoryTimeline dispositivos={dispositivos} />}
+        {aba === 'historico' && (
+          <div className="h-full space-y-4 overflow-y-auto pb-4 pr-1 animate-fade-up">
+            <PingHistoryChart
+              empresaId={empresa.id}
+              title={`Disponibilidade consolidada · ${empresa.nome}`}
+            />
+            <div>
+              <p className="eyebrow mb-2">Eventos por dispositivo</p>
+              <HistoryTimeline dispositivos={dispositivos} />
+            </div>
+          </div>
+        )}
         {aba === 'auditoria' && <AuditLog />}
       </div>
 
@@ -209,7 +221,7 @@ function NovoDispositivoModal({
   const [ip, setIp] = useState('');
   const [fabricante, setFabricante] = useState('generico');
   const [metodo, setMetodo] = useState<'snmp' | 'ping' | 'snmp+ping'>('ping');
-  const [comunidade, setComunidade] = useState('public');
+  const [comunidade, setComunidade] = useState('');
   const [porta, setPorta] = useState(161);
   const [intervalo, setIntervalo] = useState(30);
   const [salvando, setSalvando] = useState(false);
@@ -220,7 +232,8 @@ function NovoDispositivoModal({
     try {
       await api.criarDispositivo({
         empresa_id: empresaId, nome, ip, fabricante,
-        metodo_monitoramento: metodo, comunidade_snmp: comunidade,
+        metodo_monitoramento: metodo,
+        ...(metodo !== 'ping' ? { comunidade_snmp: comunidade } : {}),
         porta_snmp: porta, intervalo_polling_seg: intervalo,
       });
       toast.sucesso(`Monitoramento de "${nome}" iniciado`);
@@ -257,7 +270,7 @@ function NovoDispositivoModal({
           </Campo>
           {metodo !== 'ping' && (
             <>
-              <Campo label="Comunidade SNMP"><input value={comunidade} onChange={(e) => setComunidade(e.target.value)} className="input" maxLength={100} /></Campo>
+              <Campo label="Comunidade SNMP"><input type="password" value={comunidade} onChange={(e) => setComunidade(e.target.value)} className="input" maxLength={100} autoComplete="new-password" /></Campo>
               <Campo label="Porta SNMP"><input type="number" value={porta} onChange={(e) => setPorta(Number(e.target.value))} className="input" min={1} max={65535} /></Campo>
             </>
           )}

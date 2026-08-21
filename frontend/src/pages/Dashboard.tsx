@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, Empresa, geocodificarEndereco, STATIC_BASE } from '../api';
+import { api, Empresa, geocodificarEndereco } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { MapaEmpresas, StatusMarcador } from '../components/MapaEmpresas';
 import { Paginacao } from '../components/Paginacao';
 import { useToast } from '../components/Toast';
 import { combinaBusca } from '../lib/busca';
+import { EmpresaFoto } from '../components/EmpresaFoto';
 
 const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'];
 const TAMANHO_MAX = 4 * 1024 * 1024;
@@ -31,21 +32,22 @@ interface ResumoEmpresa {
 }
 
 function AvatarEmpresa({ empresa }: { empresa: Empresa }) {
+  const fallback = (
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-signal-600 to-accent-600 flex items-center justify-center font-display font-semibold text-white shrink-0">
+      {empresa.nome.slice(0, 2).toUpperCase()}
+    </div>
+  );
   if (empresa.foto_url) {
     return (
-      <img
-        src={`${STATIC_BASE}${empresa.foto_url}`}
+      <EmpresaFoto
+        empresaId={empresa.id}
         alt={empresa.nome}
         className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
+        fallback={fallback}
       />
     );
   }
-  const iniciais = empresa.nome.slice(0, 2).toUpperCase();
-  return (
-    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-signal-600 to-accent-600 flex items-center justify-center font-display font-semibold text-white shrink-0">
-      {iniciais}
-    </div>
-  );
+  return fallback;
 }
 
 function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; tom?: 'offline' | 'online' | 'warn' }) {
@@ -176,9 +178,9 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
     <div>
       <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
-          <p className="eyebrow mb-1">Infraestrutura sob vigilância</p>
-          <h1 className="font-display text-2xl font-semibold text-slate-100 tracking-tight">Central de Operações</h1>
-          <p className="text-muted text-sm font-mono mt-1">monitoramento ICMP/SNMP · topologia · auditoria</p>
+          <p className="eyebrow mb-1">Cadastro & monitoramento</p>
+          <h1 className="font-display text-2xl font-semibold text-slate-100 tracking-tight">Painel de Configuração</h1>
+          <p className="text-muted text-sm font-mono mt-1">cadastre as empresas aqui — elas aparecem no Mapa TV</p>
         </div>
         {isAdmin && (
           <button onClick={() => setFormAberto(true)} className="btn-primary">

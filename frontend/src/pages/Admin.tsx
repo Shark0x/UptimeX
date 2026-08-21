@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, ConfigResumo, Papel, UsuarioListado } from '../api';
+import { api, ConfigResumo, Empresa, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 import { AcessosLog } from '../components/AcessosLog';
+import { APP_VERSION } from '../version';
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const RESUMO_PADRAO: ConfigResumo = {
@@ -93,6 +94,8 @@ export function Admin() {
   const [mcpCaminho, setMcpCaminho] = useState('/api/mcp');
   const [chaveMcp, setChaveMcp] = useState<string | null>(null);
   const [gerandoChave, setGerandoChave] = useState(false);
+  const [empresasMcp, setEmpresasMcp] = useState<Empresa[]>([]);
+  const [escopoMcp, setEscopoMcp] = useState('');
 
   function carregarOverview() {
     if (isAdmin) api.adminOverview().then(setOverview).catch(() => setOverview(null));
@@ -127,13 +130,26 @@ export function Admin() {
     carregarUsuarios();
     carregarStatusAlertas();
     carregarStatusIntegracao();
+    api.listarEmpresas().then((lista) => {
+      setEmpresasMcp(lista);
+      setEscopoMcp((atual) => atual || (lista[0] ? String(lista[0].id) : ''));
+    }).catch(() => setEmpresasMcp([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function gerarChave() {
+    if (!escopoMcp) {
+      toast.erro('Selecione uma empresa ou o escopo global.');
+      return;
+    }
     setGerandoChave(true);
     try {
-      const { chave } = await api.gerarChaveMcp();
+      const global = escopoMcp === 'global';
+      const { chave } = await api.gerarChaveMcp({
+        global,
+        ...(global ? {} : { empresa_id: Number(escopoMcp) }),
+        expires_days: 90,
+      });
       setChaveMcp(chave);
       toast.sucesso('Chave gerada — copie agora, ela não será mostrada de novo');
       carregarStatusIntegracao();
@@ -222,8 +238,8 @@ export function Admin() {
   }
 
   async function criar() {
-    if (!username.trim() || password.length < 10 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      setErro('Usuário obrigatório e senha com pelo menos 10 caracteres, incluindo letra e número.');
+    if (!username.trim() || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setErro('Usuario obrigatorio e senha com 12+ caracteres, incluindo maiuscula, minuscula e numero.');
       return;
     }
     setSalvando(true);
@@ -263,8 +279,8 @@ export function Admin() {
   return (
     <div className="h-full overflow-y-auto pb-6">
       <header className="mb-5">
-        <p className="eyebrow mb-1">Painel de administração</p>
-        <h1 className="font-display text-2xl font-semibold text-slate-100 tracking-tight">Administração</h1>
+        <p className="eyebrow mb-1">Configurações do sistema</p>
+        <h1 className="font-display text-2xl font-semibold text-slate-100 tracking-tight">Configurações</h1>
       </header>
 
       <nav className="flex gap-1 mb-5 border-b border-white/[0.07] overflow-x-auto">
@@ -342,6 +358,10 @@ export function Admin() {
                   <span className="text-slate-100 tabular-nums">
                     {overview ? formatarUptime(overview.uptime_segundos) : '—'}
                   </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted">Versão do app</span>
+                  <span className="text-signal-400 tabular-nums">v{APP_VERSION}</span>
                 </div>
               </div>
             </div>
@@ -595,7 +615,14 @@ export function Admin() {
                     empresas, quedas, latência. Somente leitura, protegido por chave.
                   </p>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <select value={escopoMcp} onChange={(e) => setEscopoMcp(e.target.value)} className="input min-w-48">
+                    <option value="" disabled>Selecione o escopo</option>
+                    {empresasMcp.map((empresa) => (
+                      <option key={empresa.id} value={empresa.id}>{empresa.nome}</option>
+                    ))}
+                    <option value="global">Todas as empresas (global)</option>
+                  </select>
                   {mcpAtivo && (
                     <button onClick={revogarChave} className="btn-ghost border border-white/10 text-offline/80 hover:text-offline">
                       Revogar
@@ -664,6 +691,7 @@ export function Admin() {
                 <label className="label-field">Papel</label>
                 <select value={role} onChange={(e) => setRole(e.target.value as Papel)} className="input">
                   <option value="visualizador">Visualizador (somente leitura)</option>
+                  <option value="operador">Operador</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>

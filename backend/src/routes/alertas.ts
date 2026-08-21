@@ -4,6 +4,8 @@ import { obterConfig, salvarConfig } from '../services/configService';
 import { enviarTelegram, telegramConfigurado } from '../services/telegramService';
 import { enviarResumo, obterConfigResumo, PeriodoResumo } from '../services/resumoService';
 import { registrarAuditoria } from '../services/auditService';
+import { validateBody } from '../middleware/validate';
+import { configAlertaSchema, configResumoSchema, corpoVazioSchema, enviarResumoSchema } from '../validation/schemas';
 
 export const alertasRouter = Router();
 
@@ -11,7 +13,7 @@ alertasRouter.use(authMiddleware);
 
 // Estado + valores atuais pra pré-preencher o formulário. O token NUNCA é
 // devolvido (é segredo); só informamos se já existe um definido.
-alertasRouter.get('/status', (_req, res) => {
+alertasRouter.get('/status', requireRole('admin'), (_req, res) => {
   res.json({
     telegramConfigurado: telegramConfigurado(),
     tokenDefinido: obterConfig('telegram_bot_token', 'TELEGRAM_BOT_TOKEN') !== '',
@@ -22,7 +24,7 @@ alertasRouter.get('/status', (_req, res) => {
 });
 
 // Salva a configuração dos resumos periódicos (admin)
-alertasRouter.post('/resumo/config', requireRole('admin'), async (req, res) => {
+alertasRouter.post('/resumo/config', requireRole('admin'), validateBody(configResumoSchema), async (req, res) => {
   const { diarioAtivo, diarioHora, semanalAtivo, semanalDia, semanalHora } = req.body ?? {};
 
   const hora = (v: unknown) => {
@@ -43,12 +45,20 @@ alertasRouter.post('/resumo/config', requireRole('admin'), async (req, res) => {
     resumo_semanal_dia: String(sd),
     resumo_semanal_hora: String(sh),
   });
-  await registrarAuditoria(req.user!.username, 'editar', 'config', null, 'Atualizou os resumos periódicos do Telegram');
+  await registrarAuditoria(
+    req.user!.username,
+    'editar',
+    'config',
+    null,
+    'Atualizou os resumos periódicos do Telegram',
+    req.ip,
+    { usuarioId: req.user!.id }
+  );
   res.json({ ok: true, resumo: obterConfigResumo() });
 });
 
 // Envia um resumo na hora, pra testar/pré-visualizar (admin)
-alertasRouter.post('/resumo/enviar', requireRole('admin'), async (req, res) => {
+alertasRouter.post('/resumo/enviar', requireRole('admin'), validateBody(enviarResumoSchema), async (req, res) => {
   if (!telegramConfigurado()) {
     return res.status(400).json({ erro: 'Telegram não configurado. Preencha o token e o chat id acima e salve.' });
   }
@@ -59,7 +69,7 @@ alertasRouter.post('/resumo/enviar', requireRole('admin'), async (req, res) => {
 });
 
 // Salva a configuração dos alertas pela interface (admin)
-alertasRouter.post('/config', requireRole('admin'), async (req, res) => {
+alertasRouter.post('/config', requireRole('admin'), validateBody(configAlertaSchema), async (req, res) => {
   const { bot_token, chat_id, alerta_atraso_seg } = req.body ?? {};
   const atraso = Number(alerta_atraso_seg);
   if (!Number.isFinite(atraso) || atraso < 10 || atraso > 3600) {
@@ -76,12 +86,20 @@ alertasRouter.post('/config', requireRole('admin'), async (req, res) => {
   }
 
   await salvarConfig(entradas);
-  await registrarAuditoria(req.user!.username, 'editar', 'config', null, 'Atualizou configuração de alertas do Telegram');
+  await registrarAuditoria(
+    req.user!.username,
+    'editar',
+    'config',
+    null,
+    'Atualizou configuração de alertas do Telegram',
+    req.ip,
+    { usuarioId: req.user!.id }
+  );
   res.json({ ok: true, telegramConfigurado: telegramConfigurado() });
 });
 
 // Dispara uma mensagem de teste pro chat configurado
-alertasRouter.post('/teste', requireRole('admin'), async (_req, res) => {
+alertasRouter.post('/teste', requireRole('admin'), validateBody(corpoVazioSchema), async (_req, res) => {
   if (!telegramConfigurado()) {
     return res.status(400).json({ erro: 'Telegram não configurado. Preencha o token e o chat id acima e salve.' });
   }

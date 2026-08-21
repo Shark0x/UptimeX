@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../db/pool';
 import { authMiddleware, requireRole } from '../middleware/auth';
-import { obterConfig } from '../services/configService';
 import { telegramConfigurado } from '../services/telegramService';
+import { statusChavesMcp } from '../services/mcpKeyService';
 
 /**
  * Visão geral do sistema pro painel de administração: números da operação +
@@ -25,6 +25,7 @@ adminRouter.get('/overview', async (_req, res) => {
     FROM dispositivos WHERE ativo = TRUE
   `);
   const d = disp[0] || {};
+  const mcp = await statusChavesMcp();
 
   res.json({
     empresas: Number(emp.n),
@@ -39,7 +40,7 @@ adminRouter.get('/overview', async (_req, res) => {
     servicos: {
       banco: true, // se respondeu esta query, o banco está ok
       telegram: telegramConfigurado(),
-      mcp: obterConfig('mcp_api_key') !== '',
+      mcp: mcp.ativas > 0,
     },
     uptime_segundos: Math.round(process.uptime()),
   });
@@ -50,9 +51,9 @@ adminRouter.get('/overview', async (_req, res) => {
 adminRouter.get('/acessos', async (req, res) => {
   const limite = Math.min(Number(req.query.limite) || 200, 1000);
   const [rows] = await pool.query(
-    `SELECT id, usuario, acao, ip_origem, pais, regiao, cidade, timestamp
+    `SELECT id, usuario, acao, ip_origem, pais, regiao, cidade, "timestamp"
      FROM auditoria WHERE acao IN ('login', 'login_falhou')
-     ORDER BY timestamp DESC LIMIT ?`,
+     ORDER BY "timestamp" DESC LIMIT ?`,
     [limite]
   );
   res.json(rows);

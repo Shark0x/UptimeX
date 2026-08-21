@@ -1,0 +1,3 @@
+ALTER TABLE dispositivos
+  MODIFY COLUMN comunidade_snmp VARCHAR(500) NULL DEFAULT NULL;
+

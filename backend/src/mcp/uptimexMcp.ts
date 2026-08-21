@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import type { McpScope } from '../services/mcpKeyService';
 
 /**
  * Servidor MCP da uptimeX — expõe os dados de monitoramento como ferramentas
@@ -27,7 +28,14 @@ interface ResumoEmpresa {
 }
 
 /** Status agregado de cada empresa (mesma regra da interface). */
-async function resumoEmpresas(): Promise<ResumoEmpresa[]> {
+function filtroEscopo(escopo: McpScope, coluna: string): { sql: string; params: unknown[] } {
+  if (escopo.global) return { sql: '1=1', params: [] };
+  if (escopo.empresaIds.length === 0) return { sql: '0=1', params: [] };
+  return { sql: `${coluna} IN (?)`, params: [escopo.empresaIds] };
+}
+
+async function resumoEmpresas(escopo: McpScope): Promise<ResumoEmpresa[]> {
+  const filtro = filtroEscopo(escopo, 'e.id');
   const [rows]: any = await pool.query(`
     SELECT e.id, e.nome, e.endereco,
       COUNT(d.id) AS total,
@@ -38,9 +46,10 @@ async function resumoEmpresas(): Promise<ResumoEmpresa[]> {
                AND NOT (COALESCE(d.latencia_ms, 0) >= ? OR COALESCE(d.perda_pct, 0) >= ?) THEN 1 ELSE 0 END) AS online
     FROM empresas e
     LEFT JOIN dispositivos d ON d.empresa_id = e.id AND d.ativo = TRUE
+    WHERE ${filtro.sql}
     GROUP BY e.id, e.nome, e.endereco
     ORDER BY e.nome
-  `, [LIMIAR_LATENCIA, LIMIAR_PERDA, LIMIAR_LATENCIA, LIMIAR_PERDA]);
+  `, [LIMIAR_LATENCIA, LIMIAR_PERDA, LIMIAR_LATENCIA, LIMIAR_PERDA, ...filtro.params]);
 
   return rows.map((r: any): ResumoEmpresa => {
     const total = Number(r.total);
@@ -61,7 +70,7 @@ function resposta(obj: unknown) {
   };
 }
 
-export function criarServidorMcp(): McpServer {
+export function criarServidorMcp(escopo: McpScope): McpServer {
   const server = new McpServer({ name: 'uptimex-mcp-server', version: '1.0.0' });
 
   // ---- panorama da operação ----
@@ -78,7 +87,7 @@ export function criarServidorMcp(): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async () => {
-      const emps = await resumoEmpresas();
+      const emps = await resumoEmpresas(escopo);
       let ok = 0, atencao = 0, queda = 0, dispNoAr = 0, dispFora = 0, dispTotal = 0;
       for (const e of emps) {
         if (e.status === 'offline') queda++;
@@ -120,7 +129,7 @@ export function criarServidorMcp(): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async ({ apenas_com_problema, limite }) => {
-      let emps = await resumoEmpresas();
+      let emps = await resumoEmpresas(escopo);
       if (apenas_com_problema) emps = emps.filter((e) => e.status === 'offline' || e.status === 'degradado');
       const recorte = emps.slice(0, limite);
       return resposta({
@@ -154,7 +163,7 @@ export function criarServidorMcp(): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async ({ termo }) => {
-      const emps = await resumoEmpresas();
+      const emps = await resumoEmpresas(escopo);
       const t = termo.trim().toLowerCase();
       const achadas = emps.filter((e) => e.nome.toLowerCase().includes(t));
       return resposta({
@@ -182,16 +191,20 @@ export function criarServidorMcp(): McpServer {
       const termo = empresa.trim();
       let empresaId: number | null = null;
       let empresaNome = '';
+      const filtro = filtroEscopo(escopo, 'e.id');
 
       if (/^\d+$/.test(termo)) {
-        const [rows]: any = await pool.query(`SELECT id, nome FROM empresas WHERE id = ?`, [Number(termo)]);
+        const [rows]: any = await pool.query(
+          `SELECT e.id, e.nome FROM empresas e WHERE e.id = ? AND ${filtro.sql}`,
+          [Number(termo), ...filtro.params]
+        );
         if (rows.length === 0) return resposta({ erro: `Nenhuma empresa com id ${termo}.` });
         empresaId = rows[0].id;
         empresaNome = rows[0].nome;
       } else {
         const [rows]: any = await pool.query(
-          `SELECT id, nome FROM empresas WHERE nome LIKE ? ORDER BY nome`,
-          [`%${termo}%`]
+          `SELECT e.id, e.nome FROM empresas e WHERE e.nome LIKE ? AND ${filtro.sql} ORDER BY e.nome`,
+          [`%${termo}%`, ...filtro.params]
         );
         if (rows.length === 0) return resposta({ erro: `Nenhuma empresa com "${termo}" no nome.` });
         if (rows.length > 1) {
@@ -239,16 +252,18 @@ export function criarServidorMcp(): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async ({ horas, limite }) => {
+      const filtro = filtroEscopo(escopo, 'e.id');
       const [rows]: any = await pool.query(
         `SELECT e.nome AS empresa, d.nome AS dispositivo, d.ip,
                 se.inicio, se.fim, se.duracao_segundos
          FROM status_eventos se
          JOIN dispositivos d ON d.id = se.dispositivo_id
          JOIN empresas e ON e.id = d.empresa_id
-         WHERE se.status = 'offline' AND se.inicio >= NOW() - INTERVAL ? HOUR
+         WHERE se.status = 'offline' AND se.inicio >= NOW() - (? * INTERVAL '1 hour')
+           AND ${filtro.sql}
          ORDER BY se.inicio DESC
          LIMIT ?`,
-        [horas, limite]
+        [horas, ...filtro.params, limite]
       );
       return resposta({
         desde_horas: horas,

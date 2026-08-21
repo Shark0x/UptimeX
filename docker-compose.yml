@@ -1,6 +1,56 @@
 services:
+  # PostgreSQL 17: banco principal do backend (API + motor). A porta 5432 não é
+  # publicada no host: apenas os serviços desta rede Docker o acessam. O schema, as
+  # roles (uptimex_app/uptimex_worker) e as policies RLS nascem de postgres/init/*.
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-uptimex}
+      POSTGRES_USER: ${POSTGRES_USER:-uptimex_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no arquivo .env}
+      POSTGRES_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?defina POSTGRES_WORKER_PASSWORD no arquivo .env}
+      TZ: America/Sao_Paulo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    security_opt:
+      - no-new-privileges:true
+
+  # Executado apenas manualmente: docker compose --profile migration run --rm postgres-migrator
+  postgres-migrator:
+    profiles: ["migration"]
+    build: ./postgres/migration
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: netmonitor
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-uptimex_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-uptimex}
+    security_opt:
+      - no-new-privileges:true
+
+  # MySQL só participa da migração de dados (docker compose --profile migration ...).
+  # O stack principal roda 100% em PostgreSQL; este serviço fica desligado por padrão.
   mysql:
     image: mysql:8.4
+    profiles: ["migration"]
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD no arquivo .env}
@@ -17,22 +67,55 @@ services:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      DB_NAME: netmonitor
-      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-uptimex}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-uptimex_app}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no arquivo .env}
+      POSTGRES_WORKER_USER: ${POSTGRES_WORKER_USER:-uptimex_worker}
+      POSTGRES_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?defina POSTGRES_WORKER_PASSWORD no arquivo .env}
+      BIND_HOST: 0.0.0.0
+      TRUST_PROXY_HOPS: 1
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?defina DATA_ENCRYPTION_KEY no arquivo .env}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
+      SNMP_ALLOWED_PORTS: ${SNMP_ALLOWED_PORTS:-161}
+      ALLOW_PRIVATE_DEV_ORIGINS: "false"
+      EXTERNAL_GEOCODING_ENABLED: ${EXTERNAL_GEOCODING_ENABLED:-false}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?defina SEED_ADMIN_PASSWORD no arquivo .env}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       ALERTA_ATRASO_SEG: ${ALERTA_ATRASO_SEG:-120}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
+      AUDIT_IP_RETENTION_DAYS: ${AUDIT_IP_RETENTION_DAYS:-90}
+      ANTENNA_METRICS_RETENTION_DAYS: ${ANTENNA_METRICS_RETENTION_DAYS:-30}
+      PING_RAW_RETENTION_DAYS: ${PING_RAW_RETENTION_DAYS:-15}
+      PING_HOURLY_RETENTION_MONTHS: ${PING_HOURLY_RETENTION_MONTHS:-12}
+      PING_DAILY_RETENTION_YEARS: ${PING_DAILY_RETENTION_YEARS:-0}
+      PING_LOG_BATCH_SIZE: ${PING_LOG_BATCH_SIZE:-250}
+      PING_LOG_FLUSH_MS: ${PING_LOG_FLUSH_MS:-5000}
+      PING_LOG_MAX_QUEUE_SIZE: ${PING_LOG_MAX_QUEUE_SIZE:-20000}
+      PING_ROLLUP_CATCHUP_HOURS: ${PING_ROLLUP_CATCHUP_HOURS:-48}
+      PING_PRUNE_BATCH_SIZE: ${PING_PRUNE_BATCH_SIZE:-10000}
+      PING_DEGRADED_LATENCY_MS: ${PING_DEGRADED_LATENCY_MS:-150}
+      PING_DEGRADED_PACKET_LOSS_PCT: ${PING_DEGRADED_PACKET_LOSS_PCT:-2}
       TZ: America/Sao_Paulo
     volumes:
       - uploads_data:/app/uploads
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
 
   frontend:
     build: ./frontend
@@ -40,8 +123,16 @@ services:
     depends_on:
       - backend
     ports:
-      - "${APP_PORT:-8080}:80"
+      - "${APP_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+      - /var/cache/nginx:size=32m,noexec,nosuid
+      - /var/run:size=4m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
+  postgres_data:
   mysql_data:
   uploads_data:

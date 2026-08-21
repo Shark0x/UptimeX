@@ -11,7 +11,7 @@ export function EditarDispositivoModal({
   const [ip, setIp] = useState(dispositivo.ip);
   const [fabricante, setFabricante] = useState(dispositivo.fabricante);
   const [metodo, setMetodo] = useState(dispositivo.metodo_monitoramento);
-  const [comunidade, setComunidade] = useState(dispositivo.comunidade_snmp);
+  const [comunidade, setComunidade] = useState('');
   const [porta, setPorta] = useState(dispositivo.porta_snmp);
   const [intervalo, setIntervalo] = useState(dispositivo.intervalo_polling_seg);
   const [ativo, setAtivo] = useState(dispositivo.ativo);
@@ -38,11 +38,13 @@ export function EditarDispositivoModal({
     if (!nome.trim() || !ip.trim()) return;
     setSalvando(true);
     try {
-      await api.editarDispositivo(dispositivo.id, {
+      const payload: Partial<Dispositivo> & { comunidade_snmp?: string } = {
         nome, ip, fabricante,
-        metodo_monitoramento: metodo, comunidade_snmp: comunidade,
+        metodo_monitoramento: metodo,
         porta_snmp: porta, intervalo_polling_seg: intervalo, ativo,
-      });
+      };
+      if (comunidade.trim()) payload.comunidade_snmp = comunidade.trim();
+      await api.editarDispositivo(dispositivo.id, payload);
       toast.sucesso('Alterações salvas');
       onSalvo();
     } catch {
@@ -76,7 +78,17 @@ export function EditarDispositivoModal({
           </Campo>
           {metodo !== 'ping' && (
             <>
-              <Campo label="Comunidade SNMP"><input value={comunidade} onChange={(e) => setComunidade(e.target.value)} className="input" maxLength={100} /></Campo>
+              <Campo label="Comunidade SNMP">
+                <input
+                  type="password"
+                  value={comunidade}
+                  onChange={(e) => setComunidade(e.target.value)}
+                  className="input"
+                  placeholder={dispositivo.comunidade_snmp_configurada ? 'Deixe vazio para manter a atual' : 'Informe a comunidade'}
+                  maxLength={100}
+                  autoComplete="new-password"
+                />
+              </Campo>
               <Campo label="Porta SNMP"><input type="number" value={porta} onChange={(e) => setPorta(Number(e.target.value))} className="input" min={1} max={65535} /></Campo>
             </>
           )}

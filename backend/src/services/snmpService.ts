@@ -1,4 +1,5 @@
 import * as snmp from 'net-snmp';
+import { exigirDestinoMonitoramento, portaSnmpPermitida } from '../security/monitorTarget';
 
 // OIDs padrão universais (RFC1213 / IF-MIB) — funcionam em MikroTik, Ubiquiti,
 // Cisco e praticamente qualquer equipamento com SNMP habilitado.
@@ -20,10 +21,12 @@ export interface SnmpResult {
  */
 export function consultarSnmp(
   ip: string,
-  comunidade: string = 'public',
+  comunidade: string,
   porta: number = 161,
   timeoutMs: number = 3000
 ): Promise<SnmpResult> {
+  exigirDestinoMonitoramento(ip);
+  if (!portaSnmpPermitida(porta)) throw new Error('Porta SNMP fora da politica permitida.');
   return new Promise((resolve) => {
     const session = snmp.createSession(ip, comunidade, {
       port: porta,

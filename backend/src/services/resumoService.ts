@@ -1,4 +1,4 @@
-import { pool } from '../db/pool';
+import { workerQuery } from '../db/pool';
 import { obterConfig } from './configService';
 import { enviarTelegram, escaparHtml, telegramConfigurado } from './telegramService';
 
@@ -71,7 +71,7 @@ interface DadosResumo {
 
 async function coletar(desde: Date, ate: Date): Promise<DadosResumo> {
   // Quedas iniciadas no período + quantos ativos/empresas foram atingidos
-  const [totais]: any = await pool.query(
+  const [totais]: any = await workerQuery(
     `SELECT COUNT(*) AS quedas,
             COUNT(DISTINCT se.dispositivo_id) AS dispositivos_afetados,
             COUNT(DISTINCT d.empresa_id) AS empresas_afetadas
@@ -83,17 +83,17 @@ async function coletar(desde: Date, ate: Date): Promise<DadosResumo> {
 
   // Tempo total fora do ar no período — sobreposição da queda com a janela
   // (inclui quedas ainda abertas, cortadas em NOW()).
-  const [tempo]: any = await pool.query(
+  const [tempo]: any = await workerQuery(
     `SELECT COALESCE(SUM(GREATEST(0,
-              TIMESTAMPDIFF(SECOND, GREATEST(se.inicio, ?), LEAST(COALESCE(se.fim, NOW()), ?))
+              EXTRACT(EPOCH FROM (LEAST(COALESCE(se.fim, NOW()), ?) - GREATEST(se.inicio, ?)))
             )), 0) AS downtime_seg
        FROM status_eventos se
       WHERE se.status = 'offline' AND se.inicio < ? AND COALESCE(se.fim, NOW()) > ?`,
-    [desde, ate, ate, desde]
+    [ate, desde, ate, desde]
   );
 
   // Ranking: quem mais caiu (por nº de quedas, desempate por tempo fora)
-  const [top]: any = await pool.query(
+  const [top]: any = await workerQuery(
     `SELECT d.nome AS dispositivo, e.nome AS empresa, d.ip,
             COUNT(*) AS quedas,
             COALESCE(SUM(se.duracao_segundos), 0) AS downtime_seg
@@ -101,15 +101,15 @@ async function coletar(desde: Date, ate: Date): Promise<DadosResumo> {
        JOIN dispositivos d ON d.id = se.dispositivo_id
        JOIN empresas e ON e.id = d.empresa_id
       WHERE se.status = 'offline' AND se.inicio >= ? AND se.inicio < ?
-      GROUP BY se.dispositivo_id
+      GROUP BY d.id, e.id
       ORDER BY quedas DESC, downtime_seg DESC
       LIMIT 5`,
     [desde, ate]
   );
 
-  const [agora]: any = await pool.query(
+  const [agora]: any = await workerQuery(
     `SELECT
-       SUM(status_atual = 'offline') AS offline_agora,
+       COUNT(*) FILTER (WHERE status_atual = 'offline') AS offline_agora,
        COUNT(*) AS total
      FROM dispositivos WHERE ativo = TRUE`
   );
