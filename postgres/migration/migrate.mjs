@@ -37,9 +37,20 @@ async function read(db, table, columns = '*') {
 
 async function insertRows(client, table, rows, columns) {
   if (!rows.length) return;
-  const names = columns.map(quote).join(', ');
+  // Dumps antigos podem não ter colunas adicionadas depois (por exemplo,
+  // usuarios.sessao_versao). Omita essas colunas para o PostgreSQL aplicar o
+  // DEFAULT do schema, em vez de inserir NULL numa coluna NOT NULL.
+  const availableColumns = columns.filter((column) => Object.hasOwn(rows[0], column));
+  const missingColumns = columns.filter((column) => !Object.hasOwn(rows[0], column));
+  if (!availableColumns.length) {
+    throw new Error(`${table}: nenhuma coluna compatível encontrada no MySQL`);
+  }
+  if (missingColumns.length) {
+    console.log(`${table}: coluna(s) ausente(s) no dump antigo; usando defaults: ${missingColumns.join(', ')}`);
+  }
+  const names = availableColumns.map(quote).join(', ');
   for (const row of rows) {
-    const values = columns.map((column) => row[column] ?? null);
+    const values = availableColumns.map((column) => row[column] ?? null);
     const params = values.map((_, index) => `$${index + 1}`).join(', ');
     await client.query(`INSERT INTO ${quote(table)} (${names}) VALUES (${params})`, values);
   }
