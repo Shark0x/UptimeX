@@ -1,10 +1,10 @@
 # uptimeX / NetMonitor — hardening aplicado
 
-Atualizado em 20/08/2026. Este documento descreve controles que fazem parte do codigo e os passos operacionais necessarios para uma instalacao segura.
+Atualizado em 21/08/2026. Este documento descreve controles que fazem parte do codigo e os passos operacionais necessarios para uma instalacao segura.
 
 ## Controles implementados
 
-- Autenticacao por sessao opaca armazenada no MySQL. O navegador recebe somente um cookie `HttpOnly`; identidade e credenciais nao ficam em `localStorage`.
+- Autenticacao por sessao opaca armazenada no PostgreSQL. O navegador recebe somente um cookie `HttpOnly`; identidade e credenciais nao ficam em `localStorage`.
 - Protecao CSRF double-submit para todos os metodos mutaveis autenticados por cookie.
 - Expiracao, limite de sessoes, revogacao no logout, troca/redefinicao de senha e desconexao do Socket correspondente.
 - Autorizacao multiempresa revalidada no banco em cada requisicao e ao entrar em rooms Socket.io.
@@ -14,11 +14,12 @@ Atualizado em 20/08/2026. Este documento descreve controles que fazem parte do c
 - Destinos ICMP/SNMP limitados a IP literal e a `MONITOR_ALLOWED_CIDRS`. Loopback, link-local, multicast e enderecos reservados permanecem bloqueados.
 - Porta SNMP limitada por `SNMP_ALLOWED_PORTS` (padrao: `161`).
 - Validacao Zod nos corpos mutaveis, validacao da assinatura real de uploads e limites para historicos/sondagens em lote.
-- Rate limits para API, login por IP/usuario, MCP e Socket.io; fila do pool MySQL limitada.
+- Isolamento multi-tenant no banco por Row-Level Security (RLS): a API conecta com contexto `app.user_id` por requisicao e so enxerga as empresas do usuario, mesmo que uma query esqueca o filtro.
+- Rate limits para API, login por IP/usuario, MCP e Socket.io; fila do pool PostgreSQL limitada.
 - Erros HTTP sanitizados e logs de producao sem stack, SQL, IP de dispositivo ou credenciais.
 - Retencao de auditoria configuravel; IPs de origem sao anonimizados antes da exclusao dos eventos.
 - Nginx com CSP, HSTS, anti-frame, MIME sniffing desativado e demais headers defensivos.
-- Backend e Nginx rodam sem root nos containers; a API usa um usuario MySQL CRUD, separado do usuario de migrations.
+- Backend e Nginx rodam sem root nos containers. A API conecta como a role PostgreSQL `uptimex_app` (sem SUPERUSER, sujeita ao RLS por empresa) e o motor de monitoramento como `uptimex_worker`; nenhuma delas e o `uptimex_owner`, reservado a criacao do schema, migracao e manutencao.
 - Backend local escuta somente `127.0.0.1` e nao confia em headers encaminhados; no compose, `BIND_HOST=0.0.0.0` e `TRUST_PROXY_HOPS=1` ficam restritos a rede interna do Nginx.
 - Dependencias auditadas sem vulnerabilidades conhecidas no momento desta atualizacao.
 
@@ -26,11 +27,12 @@ Atualizado em 20/08/2026. Este documento descreve controles que fazem parte do c
 
 Copie `.env.docker.example` para `.env` e substitua todos os valores de exemplo. Nunca reutilize senhas entre os itens abaixo.
 
-- `MYSQL_ROOT_PASSWORD`: usada apenas por migration/bootstrap.
-- `MYSQL_APP_PASSWORD`: usada pelo pool da API; minimo de 16 caracteres.
+- `POSTGRES_PASSWORD`: senha do owner (`uptimex_owner`), usada para criar schema/roles no primeiro boot e para migracao/manutencao. Nunca usada pela API.
+- `POSTGRES_APP_PASSWORD`: senha da role da API (`uptimex_app`, sujeita ao RLS); minimo de 16 caracteres.
+- `POSTGRES_WORKER_PASSWORD`: senha da role do motor de monitoramento (`uptimex_worker`); minimo de 16 caracteres.
 - `DATA_ENCRYPTION_KEY`: chave aleatoria com 32+ caracteres. Nao a troque sem antes planejar a recifragem dos segredos existentes.
 - `SEED_ADMIN_PASSWORD`: usada somente se o banco ainda nao possui usuarios; deve ter 12+ caracteres, maiuscula, minuscula e numero.
-- Senhas do PostgreSQL paralelo, enquanto ele permanecer no compose.
+- `MYSQL_ROOT_PASSWORD`: necessaria apenas para migrar dados de uma instalacao MySQL antiga (profile `migration` do compose). Ignorada numa instalacao nova.
 
 Comandos sugeridos para gerar valores:
 
@@ -56,7 +58,7 @@ Use os menores blocos possiveis. Alterar essa lista requer reiniciar o backend.
 O compose publica HTTP na porta configurada para facilitar teste local. Antes de expor a instalacao, coloque um reverse proxy TLS (Caddy, Traefik, Nginx ou load balancer) na frente do frontend e:
 
 1. Aponte o dominio publico somente para o proxy TLS.
-2. Nao exponha diretamente as portas do MySQL, PostgreSQL ou backend.
+2. Nao exponha diretamente as portas do PostgreSQL ou do backend (nem do MySQL de migracao, quando ativo).
 3. Encaminhe `X-Forwarded-Proto: https` pelo proxy confiavel.
 4. Use `COOKIE_SECURE=true` (ou `auto` com o header acima).
 5. Restrinja firewall para que a porta HTTP interna seja acessivel apenas pelo proxy/rede administrativa.
