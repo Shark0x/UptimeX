@@ -35,6 +35,43 @@ async function read(db, table, columns = '*') {
   return rows;
 }
 
+function normalizeStatusEventos(rows) {
+  const byDevice = new Map();
+  for (const row of rows) {
+    const group = byDevice.get(row.dispositivo_id) || [];
+    group.push(row);
+    byDevice.set(row.dispositivo_id, group);
+  }
+
+  let adjusted = 0;
+  for (const group of byDevice.values()) {
+    group.sort((left, right) => String(left.inicio).localeCompare(String(right.inicio)));
+    const openIndexes = group
+      .map((row, index) => (row.fim == null ? index : -1))
+      .filter((index) => index >= 0);
+    // PostgreSQL keeps one open event per device. Close only the older duplicate
+    // opens at the next observed event; the newest open event remains open.
+    for (const index of openIndexes.slice(0, -1)) {
+      const current = group[index];
+      const next = group[index + 1];
+      if (!next?.inicio) continue;
+      current.fim = next.inicio;
+      if (current.duracao_segundos == null) {
+        const start = Date.parse(`${String(current.inicio).replace(' ', 'T')}Z`);
+        const end = Date.parse(`${String(next.inicio).replace(' ', 'T')}Z`);
+        if (Number.isFinite(start) && Number.isFinite(end)) {
+          current.duracao_segundos = Math.max(0, Math.round((end - start) / 1000));
+        }
+      }
+      adjusted += 1;
+    }
+  }
+  if (adjusted) {
+    console.log(`status_eventos: ${adjusted} evento(s) aberto(s) duplicado(s) fechados no próximo início`);
+  }
+  return rows;
+}
+
 async function insertRows(client, table, rows, columns) {
   if (!rows.length) return;
   // Dumps antigos podem não ter colunas adicionadas depois (por exemplo,
@@ -138,7 +175,8 @@ async function main() {
       RESTART IDENTITY CASCADE`);
 
     for (const [table, columns] of specs) {
-      const rows = await read(mysqlDb, table);
+      let rows = await read(mysqlDb, table);
+      if (table === 'status_eventos') rows = normalizeStatusEventos(rows);
       await insertRows(client, table, rows, columns);
     }
 
