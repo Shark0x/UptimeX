@@ -193,6 +193,9 @@ Fotos das empresas (se quiser validar imagens): depois de copiar a pasta
 
 ```bash
 docker compose cp backend/uploads/. backend:/app/uploads/
+# O backend roda como usuario `node`; ajuste a propriedade apos importar fotos
+# de uma instalacao antiga, que normalmente pertencem a root.
+docker run --rm -v uptimex_uploads_data:/data alpine:3.20 chown -R 1000:1000 /data
 ```
 
 ---
