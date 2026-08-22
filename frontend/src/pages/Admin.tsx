@@ -3,6 +3,7 @@ import { api, ConfigResumo, Empresa, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 import { AcessosLog } from '../components/AcessosLog';
+import { PasswordInput } from '../components/PasswordInput';
 import { APP_VERSION } from '../version';
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -74,6 +75,11 @@ export function Admin() {
   const [role, setRole] = useState<Papel>('visualizador');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [usuarioEditando, setUsuarioEditando] = useState<UsuarioListado | null>(null);
+  const [usernameEdicao, setUsernameEdicao] = useState('');
+  const [senhaEdicao, setSenhaEdicao] = useState('');
+  const [erroEdicao, setErroEdicao] = useState('');
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   // Alertas do Telegram
   const [telegramAtivo, setTelegramAtivo] = useState<boolean | null>(null);
@@ -235,6 +241,46 @@ export function Admin() {
     setPassword('');
     setRole('visualizador');
     setErro('');
+  }
+
+  function abrirEdicao(usuarioAlvo: UsuarioListado) {
+    setUsuarioEditando(usuarioAlvo);
+    setUsernameEdicao(usuarioAlvo.username);
+    setSenhaEdicao('');
+    setErroEdicao('');
+  }
+
+  function fecharEdicao() {
+    setUsuarioEditando(null);
+    setUsernameEdicao('');
+    setSenhaEdicao('');
+    setErroEdicao('');
+  }
+
+  async function salvarEdicao() {
+    const nome = usernameEdicao.trim();
+    if (nome.length < 3 || !/^[a-zA-Z0-9_.-]+$/.test(nome)) {
+      setErroEdicao('Use ao menos 3 caracteres: letras, numeros, ponto, hifen ou underscore.');
+      return;
+    }
+    if (senhaEdicao && (senhaEdicao.length < 12 || !/[a-z]/.test(senhaEdicao) || !/[A-Z]/.test(senhaEdicao) || !/[0-9]/.test(senhaEdicao))) {
+      setErroEdicao('A nova senha precisa de 12+ caracteres, maiuscula, minuscula e numero.');
+      return;
+    }
+    if (!usuarioEditando) return;
+
+    setSalvandoEdicao(true);
+    setErroEdicao('');
+    try {
+      await api.atualizarUsuario(usuarioEditando.id, nome, senhaEdicao || undefined);
+      toast.sucesso(`Usuario "${nome}" atualizado${senhaEdicao ? '; sessoes anteriores foram encerradas' : ''}.`);
+      fecharEdicao();
+      await carregarUsuarios();
+    } catch (e: any) {
+      setErroEdicao(e.message || 'Nao foi possivel atualizar o usuario.');
+    } finally {
+      setSalvandoEdicao(false);
+    }
   }
 
   async function criar() {
@@ -402,10 +448,17 @@ export function Admin() {
                       <span className={`text-xs font-mono ${u.ativo ? 'text-online' : 'text-offline'}`}>{u.ativo ? 'ativo' : 'inativo'}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {isAdmin && u.id !== usuario?.id && u.ativo && (
-                        <button onClick={() => removerUsuario(u.id, u.username)} className="text-xs text-offline hover:underline">
-                          Remover
-                        </button>
+                      {isAdmin && u.ativo && (
+                        <div className="flex items-center justify-end gap-3">
+                          <button onClick={() => abrirEdicao(u)} className="text-xs text-signal-400 hover:underline">
+                            Editar
+                          </button>
+                          {u.id !== usuario?.id && (
+                            <button onClick={() => removerUsuario(u.id, u.username)} className="text-xs text-offline hover:underline">
+                              Remover
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -685,7 +738,7 @@ export function Admin() {
               </div>
               <div>
                 <label className="label-field">Senha</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input" maxLength={200} autoComplete="new-password" />
+                <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} className="input" maxLength={200} autoComplete="new-password" />
               </div>
               <div>
                 <label className="label-field">Papel</label>
@@ -703,6 +756,33 @@ export function Admin() {
               <button onClick={fecharForm} className="btn-ghost">Cancelar</button>
               <button onClick={criar} disabled={salvando} className="btn-primary">
                 {salvando ? 'Salvando...' : 'Criar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {usuarioEditando && (
+        <div className="fixed inset-0 bg-deep-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel p-6 w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="editar-usuario-titulo">
+            <p className="eyebrow mb-1">Administracao de acesso</p>
+            <h2 id="editar-usuario-titulo" className="font-display font-semibold text-lg text-slate-100 mb-4">Editar usuario</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="label-field" htmlFor="editar-username">Nome de usuario</label>
+                <input id="editar-username" value={usernameEdicao} onChange={(e) => setUsernameEdicao(e.target.value)} className="input" maxLength={50} autoComplete="username" autoFocus />
+              </div>
+              <div>
+                <label className="label-field" htmlFor="editar-senha">Nova senha</label>
+                <PasswordInput id="editar-senha" value={senhaEdicao} onChange={(e) => setSenhaEdicao(e.target.value)} className="input" maxLength={200} autoComplete="new-password" placeholder="Deixe em branco para manter a atual" />
+                <p className="mt-1.5 text-[11px] text-muted">Ao alterar a senha, todas as sessoes desse usuario serao encerradas.</p>
+              </div>
+            </div>
+            {erroEdicao && <p className="text-offline text-xs mt-3" role="alert">{erroEdicao}</p>}
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={fecharEdicao} className="btn-ghost">Cancelar</button>
+              <button onClick={salvarEdicao} disabled={salvandoEdicao} className="btn-primary">
+                {salvandoEdicao ? 'Salvando...' : 'Salvar alteracoes'}
               </button>
             </div>
           </div>

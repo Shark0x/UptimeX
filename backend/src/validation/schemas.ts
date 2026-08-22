@@ -31,6 +31,12 @@ export const alterarMinhaSenhaSchema = z.object({
 
 export const redefinirSenhaUsuarioSchema = z.object({ nova_senha: senhaForte });
 
+export const atualizarUsuarioSchema = z.object({
+  username: z.string().trim().min(3).max(50)
+    .regex(/^[a-zA-Z0-9_.-]+$/, 'Use apenas letras, numeros, ponto, hifen ou underscore'),
+  nova_senha: senhaForte.optional(),
+});
+
 export const criarUsuarioSchema = z.object({
   username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9_.-]+$/, 'Use apenas letras, números, ponto, hífen ou underscore'),
   // Mínimo 10 com pelo menos uma letra e um número — dificulta brute-force e

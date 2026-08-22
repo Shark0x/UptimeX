@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useToast } from './Toast';
+import { PasswordInput } from './PasswordInput';
 
 export function TrocarSenhaModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
@@ -34,9 +35,9 @@ export function TrocarSenhaModal({ onClose }: { onClose: () => void }) {
         <p className="eyebrow mb-1">Seguranca da conta</p>
         <h2 className="font-display font-semibold text-lg text-slate-100 mb-4">Alterar senha</h2>
         <div className="space-y-3">
-          <label className="block"><span className="label-field">Senha atual</span><input type="password" value={atual} onChange={(e) => setAtual(e.target.value)} className="input" autoComplete="current-password" /></label>
-          <label className="block"><span className="label-field">Nova senha</span><input type="password" value={nova} onChange={(e) => setNova(e.target.value)} className="input" autoComplete="new-password" maxLength={200} /></label>
-          <label className="block"><span className="label-field">Confirmar nova senha</span><input type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} className="input" autoComplete="new-password" maxLength={200} /></label>
+          <label className="block"><span className="label-field">Senha atual</span><PasswordInput value={atual} onChange={(e) => setAtual(e.target.value)} className="input" autoComplete="current-password" /></label>
+          <label className="block"><span className="label-field">Nova senha</span><PasswordInput value={nova} onChange={(e) => setNova(e.target.value)} className="input" autoComplete="new-password" maxLength={200} /></label>
+          <label className="block"><span className="label-field">Confirmar nova senha</span><PasswordInput value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} className="input" autoComplete="new-password" maxLength={200} /></label>
         </div>
         {erro && <p className="text-offline text-xs mt-3">{erro}</p>}
         <div className="flex justify-end gap-2 mt-6">
@@ -47,4 +48,3 @@ export function TrocarSenhaModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-

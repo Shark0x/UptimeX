@@ -3,7 +3,7 @@ import { Server as SocketServer } from 'socket.io';
 import { pool } from '../db/pool';
 import { authMiddleware, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
-import { atualizarVinculosUsuarioSchema, criarUsuarioSchema, redefinirSenhaUsuarioSchema } from '../validation/schemas';
+import { atualizarUsuarioSchema, atualizarVinculosUsuarioSchema, criarUsuarioSchema, redefinirSenhaUsuarioSchema } from '../validation/schemas';
 import { hashPassword } from '../services/authService';
 import { registrarAuditoria } from '../services/auditService';
 import { revogarSessoesUsuario } from '../services/sessionService';
@@ -99,6 +99,58 @@ export function criarUsuariosRouter(io: SocketServer) {
     } finally {
       connection.release();
     }
+  });
+
+  router.put('/:id', validateBody(atualizarUsuarioSchema), async (req, res) => {
+    const alvoId = Number(req.params.id);
+    if (!Number.isInteger(alvoId) || alvoId <= 0) {
+      return res.status(400).json({ erro: 'Usuario invalido.' });
+    }
+
+    const [alvos]: any = await pool.query(
+      `SELECT id, username FROM usuarios WHERE id = ? AND ativo = TRUE LIMIT 1`,
+      [alvoId]
+    );
+    const alvo = alvos[0];
+    if (!alvo) return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+
+    const username = req.body.username;
+    const novaSenha: string | undefined = req.body.nova_senha;
+    const [duplicados]: any = await pool.query(
+      `SELECT id FROM usuarios WHERE username = ? AND id <> ? LIMIT 1`,
+      [username, alvoId]
+    );
+    if (duplicados.length > 0) {
+      return res.status(409).json({ erro: 'Ja existe um usuario com esse nome.' });
+    }
+
+    const hash = novaSenha ? await hashPassword(novaSenha) : null;
+    if (hash) {
+      await pool.query(
+        `UPDATE usuarios SET username = ?, senha_hash = ?, sessao_versao = sessao_versao + 1 WHERE id = ?`,
+        [username, hash, alvoId]
+      );
+      await revogarSessoesUsuario(alvoId);
+      io.in(`usuario_${alvoId}`).disconnectSockets(true);
+    } else {
+      await pool.query(`UPDATE usuarios SET username = ? WHERE id = ?`, [username, alvoId]);
+    }
+
+    const alteracoes = [
+      alvo.username !== username ? `nome de usuario: "${alvo.username}" para "${username}"` : null,
+      hash ? 'senha redefinida' : null,
+    ].filter(Boolean).join('; ') || 'nenhuma alteracao';
+    await registrarAuditoria(
+      req.user!.username,
+      'editar',
+      'usuario',
+      alvoId,
+      `Atualizou usuario "${username}" (${alteracoes})`,
+      req.ip,
+      { usuarioId: req.user!.id }
+    );
+
+    res.json({ ok: true, id: alvoId, username, senha_alterada: Boolean(hash) });
   });
 
   router.put('/:id/empresas', validateBody(atualizarVinculosUsuarioSchema), async (req, res) => {

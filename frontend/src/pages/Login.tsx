@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { LockupUptimeX } from '../components/LogoUptimeX';
 import { Waves } from '../components/ui/wave-background';
+import { PasswordInput } from '../components/PasswordInput';
 
 export function TelaLogin() {
   const { login, carregando } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState('');
   const [tremor, setTremor] = useState(false);
 
@@ -87,26 +87,15 @@ export function TelaLogin() {
                 <label className="block font-grotesk text-[13px] text-slate-300 mb-1.5" htmlFor="login-senha">
                   Senha
                 </label>
-                <div className="relative">
-                  <input
+                <PasswordInput
                     id="login-senha"
-                    type={mostrarSenha ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     maxLength={200}
-                    className="input pr-16"
+                    className="input"
                     onKeyDown={(e) => e.key === 'Enter' && entrar()}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setMostrarSenha((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 font-grotesk text-xs text-muted hover:text-signal-400 transition-colors px-1"
-                    aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                  >
-                    {mostrarSenha ? 'ocultar' : 'ver'}
-                  </button>
-                </div>
               </div>
             </div>
 

@@ -10,6 +10,14 @@ const {
   criptografarSegredo,
   descriptografarSegredo,
 } = require('../dist/security/secretCrypto.js');
+const { atualizarUsuarioSchema } = require('../dist/validation/schemas.js');
+
+test('edicao administrativa valida nome e torna a nova senha opcional', () => {
+  assert.equal(atualizarUsuarioSchema.safeParse({ username: 'operador.01' }).success, true);
+  assert.equal(atualizarUsuarioSchema.safeParse({ username: 'op' }).success, false);
+  assert.equal(atualizarUsuarioSchema.safeParse({ username: 'operador', nova_senha: 'fraca' }).success, false);
+  assert.equal(atualizarUsuarioSchema.safeParse({ username: 'operador', nova_senha: 'SenhaForte123!' }).success, true);
+});
 
 test('bloqueia alvos locais e exige allowlist para rede privada', () => {
   const anterior = process.env.MONITOR_ALLOWED_CIDRS;

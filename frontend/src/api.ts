@@ -384,6 +384,11 @@ export const api = {
   listarUsuarios: (): Promise<UsuarioListado[]> => req('/usuarios'),
   criarUsuario: (username: string, password: string, role: Papel, empresa_ids: number[] = []) =>
     req('/usuarios', { method: 'POST', body: JSON.stringify({ username, password, role, empresa_ids }) }),
+  atualizarUsuario: (id: number, username: string, nova_senha?: string) =>
+    req(`/usuarios/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ username, ...(nova_senha ? { nova_senha } : {}) }),
+    }),
   atualizarEmpresasUsuario: (id: number, empresa_ids: number[]) =>
     req(`/usuarios/${id}/empresas`, { method: 'PUT', body: JSON.stringify({ empresa_ids }) }),
   removerUsuario: (id: number) => req(`/usuarios/${id}`, { method: 'DELETE' }),
