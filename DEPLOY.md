@@ -1,129 +1,179 @@
-# uptimeX — Deploy com Docker
+# uptimeX Docker deployment guide
 
-Sobe **PostgreSQL + backend + site** com um comando. O banco nasce pronto no
-primeiro boot: o container PostgreSQL cria o schema, as roles e as políticas de
-segurança (RLS), e o backend semeia o usuário `admin`.
+This guide deploys PostgreSQL 17, the backend, and the web interface as one hardened Docker Compose stack. PostgreSQL initializes the schema, roles, functions, and Row-Level Security policies on its first boot. The backend creates the initial `admin` account only when no administrator exists.
 
-## ⚡ Instalação automática (recomendado)
+## Automatic installation (recommended)
 
-Os scripts fazem tudo: verificam o Docker, criam o `.env` com senhas
-aleatórias, sobem os containers, **inicializam o banco** e perguntam se você quer
-restaurar os dados trazidos de casa (`backup-netmonitor.sql`).
+From the repository root:
 
-```
+```bash
 # Linux
 bash instalar.sh
 
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File instalar.ps1
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 ```
 
-No fim, ele mostra o endereço de acesso e a senha inicial do admin.
-Os passos manuais abaixo são o mesmo processo, pra quem preferir controlar.
+The scripts verify Docker, generate all required secrets in an ignored `.env`, build the images, start the stack, and wait for the API and database to become ready. Existing `.env` files are preserved and never overwritten.
 
-## Pré-requisito
-Docker instalado na máquina (Docker Desktop no Windows, ou `docker` + plugin
-`compose` no Linux). Teste com: `docker compose version`
+## Requirements
 
-## Passo a passo (primeira vez)
+- Docker Engine and the `docker compose` plugin, or Docker Desktop
+- Outbound ICMP access to monitored devices
+- Network access to the explicitly allowed SNMP targets and ports
 
-1. Copie a pasta do projeto inteira pra máquina da empresa.
+Verify Compose before installation:
 
-2. Na raiz do projeto (onde está o `docker-compose.yml`):
-   ```
+```bash
+docker compose version
+```
+
+## Manual first installation
+
+1. Create the environment file:
+
+   ```bash
    cp .env.docker.example .env
    ```
-   Edite o `.env` e troque **todos** os `troque_por_...` por valores fortes:
-   as três senhas do Postgres (`POSTGRES_PASSWORD` do owner, `POSTGRES_APP_PASSWORD`
-   da API e `POSTGRES_WORKER_PASSWORD` do motor), a chave `DATA_ENCRYPTION_KEY`
-   (32+ caracteres, ex: `openssl rand -base64 48`) e `SEED_ADMIN_PASSWORD`
-   (senha do admin, 12+ com maiúscula, minúscula e número).
-   Se quiser os alertas, preencha também `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`.
-   O `MYSQL_ROOT_PASSWORD` só é usado se você for **migrar** dados de uma
-   instalação MySQL antiga (veja a seção abaixo); numa instalação nova, ignore.
-   (O `instalar.sh`/`instalar.ps1` gera todos esses segredos automaticamente.)
 
-3. Suba tudo:
-   ```
-   docker compose up -d --build
-   ```
-   (a primeira vez demora alguns minutos baixando imagens e compilando)
+2. Replace all placeholder values. Use distinct random values for:
 
-4. Acompanhe o boot e confira a criação do admin:
-   ```
-   docker compose logs -f backend
-   ```
-   Procure por `conta admin inicial "admin" criada`. A senha é a que você
-   colocou em `SEED_ADMIN_PASSWORD` (nunca aparece no log). O log também
-   confirma "Alertas Telegram: ATIVOS".
+   - `POSTGRES_PASSWORD`
+   - `POSTGRES_APP_PASSWORD`
+   - `POSTGRES_WORKER_PASSWORD`
+   - `DATA_ENCRYPTION_KEY`
+   - `SEED_ADMIN_PASSWORD`
 
-5. Acesse: `http://IP_DA_MAQUINA:8080` (usuário `admin`).
-   No celular, mesmo endereço — e dá pra "Adicionar à tela inicial".
+   `MYSQL_ROOT_PASSWORD` is required only for a legacy MySQL migration. Telegram variables are optional. For public HTTPS deployments, set `COOKIE_SECURE=true`.
 
-## Levando os dados atuais (migração de uma instalação MySQL antiga)
+3. Start the stack and wait for health checks:
 
-Quem já rodava o sistema em **MySQL** leva os dados pro PostgreSQL com o
-migrador dedicado, que **só lê** o MySQL e preenche o Postgres numa única
-transação (preserva IDs, hashes bcrypt e timestamps). O MySQL entra em cena
-apenas aqui — pelo profile `migration` do compose — e fica desligado no dia a dia.
-
-1. Deixe o stack já no ar (passo 3) e preencha `MYSQL_ROOT_PASSWORD` no `.env`.
-
-2. Suba o MySQL de migração e restaure o retrato de casa (`backup-netmonitor.sql`):
-   ```
-   docker compose --profile migration up -d mysql
-   docker compose --profile migration exec -T mysql \
-     sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS netmonitor"'
-   docker compose --profile migration exec -T mysql \
-     sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" netmonitor' < backup-netmonitor.sql
+   ```bash
+   docker compose up -d --build --wait
+   docker compose ps
    ```
 
-3. Rode o migrador uma única vez e desligue o MySQL:
+4. Inspect backend startup:
+
+   ```bash
+   docker compose logs --tail 100 backend
    ```
-   docker compose --profile migration run --rm postgres-migrator
-   docker compose --profile migration stop mysql
-   docker compose restart backend
-   ```
 
-O restart do backend faz o motor reconhecer os dispositivos migrados.
-Importante: a migração traz também os USUÁRIOS de casa (kevin/admin com as
-mesmas senhas) — o admin semeado no primeiro boot deixa de ser o único.
-Detalhes e validação do migrador em `postgres/README.md`.
+5. Open `http://HOST_IP:8080` and sign in as `admin` with the password generated by the installer or configured in `SEED_ADMIN_PASSWORD`.
 
-As fotos das empresas ficam em `backend/uploads/`. Pra levá-las pro volume:
+## Safe production update
 
+Create a database backup before changing the running release:
+
+```bash
+docker compose exec -T postgres \
+  pg_dump -U uptimex_owner -d uptimex > backup-uptimex.sql
 ```
+
+Then update and validate:
+
+```bash
+git pull --ff-only
+docker compose build backend frontend
+docker compose up -d --wait backend
+docker compose up -d --wait frontend
+docker compose ps
+```
+
+Check the public health endpoint through the frontend port:
+
+```bash
+wget -qO- http://127.0.0.1:${APP_PORT:-8080}/api/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+## Migrating a legacy MySQL database
+
+The normal stack is PostgreSQL-only. MySQL starts only under the `migration` profile.
+
+1. Back up the source MySQL database and application uploads.
+2. Test the complete restoration and migration in an isolated Compose project.
+3. Compare row counts and run the RLS smoke test.
+4. Freeze writes, create a final backup, and repeat the validated process for production.
+
+Example import flow:
+
+```bash
+docker compose --profile migration up -d mysql
+
+docker compose --profile migration exec -T mysql \
+  sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS netmonitor"'
+
+docker compose --profile migration exec -T mysql \
+  sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" netmonitor' < backup-netmonitor.sql
+
+docker compose --profile migration run --build --rm postgres-migrator
+
+docker compose exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U uptimex_owner -d uptimex \
+  < postgres/tests/rls-smoke.sql
+
+docker compose --profile migration stop mysql
+docker compose restart backend
+```
+
+The migrator performs the PostgreSQL import in one transaction and does not modify MySQL. It preserves IDs, bcrypt password hashes, and timestamps. It also handles columns absent from older releases and normalizes duplicate open status events before PostgreSQL constraints are applied.
+
+See [docs/RUNBOOK-VALIDACAO-MIGRACAO.md](docs/RUNBOOK-VALIDACAO-MIGRACAO.md) for the complete GO/NO-GO procedure.
+
+## Migrating uploaded images
+
+Copy the legacy upload directory into the persistent volume and restore ownership for the unprivileged backend user:
+
+```bash
 docker compose cp backend/uploads/. backend:/app/uploads/
-# O backend roda como usuario `node`; ajuste a propriedade do volume apos copiar
-# arquivos de uma instalacao antiga (que normalmente pertencem a root).
-docker run --rm -v uptimex_uploads_data:/data alpine:3.20 chown -R 1000:1000 /data
+docker run --rm -v uptimex_uploads_data:/data alpine:3.20 \
+  chown -R 1000:1000 /data
 ```
 
-## Dia a dia
+The exact volume prefix depends on the Compose project name. Confirm it first with `docker volume ls` when deploying under a custom `-p` project name.
 
-| Ação | Comando |
+## Backup and restore
+
+Database backup:
+
+```bash
+docker compose exec -T postgres \
+  pg_dump -U uptimex_owner -d uptimex > backup-uptimex.sql
+```
+
+Restore into an empty initialized database:
+
+```bash
+docker compose exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U uptimex_owner -d uptimex < backup-uptimex.sql
+```
+
+Back up the uploads volume separately. A database dump does not contain company images or user avatars.
+
+## Daily operations
+
+| Task | Command |
 |---|---|
-| Ver status | `docker compose ps` |
-| Ver logs do backend | `docker compose logs -f backend` |
-| Reiniciar tudo | `docker compose restart` |
-| Parar | `docker compose down` (dados ficam salvos) |
-| Atualizar após mudar o código | `docker compose up -d --build` |
+| Service status | `docker compose ps` |
+| Backend logs | `docker compose logs -f backend` |
+| Restart | `docker compose restart` |
+| Stop and preserve data | `docker compose down` |
+| Update images from source | `docker compose up -d --build --wait` |
 
-## Backup do banco
-```
-docker compose exec -T postgres pg_dump -U uptimex_owner -d uptimex > backup-uptimex.sql
-```
-Guarde esse arquivo. Pra restaurar num banco vazio:
-```
-docker compose exec -T postgres psql -U uptimex_owner -d uptimex < backup-uptimex.sql
-```
+Never use `docker compose down -v` during normal operations because `-v` removes the persistent database and upload volumes.
 
-## Como funciona por dentro
-- O site (nginx, porta 8080) serve o frontend e faz proxy de `/api`,
-  `/socket.io` e `/uploads` pro backend — **uma porta só**, sem CORS.
-- PostgreSQL e backend ficam na rede interna do Docker (não expostos pra fora).
-  A API fala com o banco como `uptimex_app` (sujeita ao RLS por empresa) e o
-  motor como `uptimex_worker` — nunca como owner.
-- Dados persistem nos volumes `postgres_data` (banco) e `uploads_data` (fotos),
-  sobrevivendo a rebuilds e reinícios.
-- `restart: unless-stopped`: tudo volta sozinho se a máquina reiniciar.
+## Runtime security model
+
+- Only the Nginx frontend port is published to the host.
+- PostgreSQL and the backend remain on the internal Compose network.
+- The API connects as `uptimex_app` and is restricted by tenant RLS policies.
+- Monitoring workers connect as `uptimex_worker`; the application never runs as the database owner.
+- The frontend and backend use read-only root filesystems and `no-new-privileges`.
+- The backend drops all Linux capabilities except `NET_RAW`, which is required for ICMP.
+- Uploaded files are stored in a persistent volume and served only through authenticated API routes.
