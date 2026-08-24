@@ -7,6 +7,7 @@ import { descartarUploadFoto, uploadFotoEmpresa, validarConteudoFotoEmpresa } fr
 import { criarEmpresaSchema } from '../validation/schemas';
 import { filtroEmpresaSql, normalizarIdPositivo, podeAcessarEmpresa } from '../security/tenantAccess';
 import { consultarHistoricoPingEmpresa, normalizarRangeHistorico } from '../services/pingHistoryService';
+import { gerarRelatorioEmpresa } from '../services/relatorioService';
 
 export const empresasRouter = Router();
 
@@ -72,6 +73,30 @@ empresasRouter.get('/:id/ping-history', async (req, res) => {
   } catch {
     console.error(`Erro ao consultar historico de ping da empresa id=${empresaId}.`);
     res.status(500).json({ erro: 'Nao foi possivel consultar o historico de ping.' });
+  }
+});
+
+// Extrato de SLA da empresa: disponibilidade, latência, perda e quedas do
+// período, consolidando a série de ping e os eventos de status. Alimenta o
+// relatório imprimível (Salvar como PDF) na aba Histórico.
+empresasRouter.get('/:id/relatorio', async (req, res) => {
+  const empresaId = normalizarIdPositivo(req.params.id);
+  if (!empresaId) return res.status(400).json({ erro: 'Empresa invalida' });
+  if (!podeAcessarEmpresa(req.user!, empresaId)) {
+    return res.status(404).json({ erro: 'Empresa nao encontrada' });
+  }
+  const range = normalizarRangeHistorico(req.query.range);
+  if (!range) {
+    return res.status(400).json({ erro: 'Periodo invalido. Use 24h, 7d, 30d, 90d ou 1y.' });
+  }
+
+  try {
+    const relatorio = await gerarRelatorioEmpresa(empresaId, range);
+    if (!relatorio) return res.status(404).json({ erro: 'Empresa nao encontrada' });
+    res.json(relatorio);
+  } catch {
+    console.error(`Erro ao gerar relatorio da empresa id=${empresaId}.`);
+    res.status(500).json({ erro: 'Nao foi possivel gerar o relatorio.' });
   }
 });
 

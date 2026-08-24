@@ -176,6 +176,37 @@ export interface PingHistoryPoint {
   degraded_pct: number;
 }
 
+export interface QuedaRelatorio {
+  dispositivo: string;
+  inicio: string;
+  fim: string | null;
+  duracao_segundos: number | null;
+  em_andamento: boolean;
+}
+
+export interface RelatorioEmpresaData {
+  empresa: { id: number; nome: string; endereco: string | null };
+  periodo: { range: PingHistoryRange; label: string; inicio: string; fim: string; gerado_em: string };
+  kpis: {
+    disponibilidade_pct: number | null;
+    degradado_pct: number | null;
+    latencia_media: number | null;
+    latencia_p95: number | null;
+    latencia_max: number | null;
+    perda_media: number | null;
+    perda_max: number | null;
+    total_quedas: number;
+    tempo_total_offline_seg: number;
+    mttr_seg: number | null;
+    maior_queda_seg: number | null;
+    dispositivos_monitorados: number;
+  };
+  serie: PingHistoryPoint[];
+  quedas: QuedaRelatorio[];
+  por_dispositivo: Array<{ dispositivo: string; quedas: number; tempo_offline_seg: number }>;
+  limiares: { latencia_ms: number; perda_pct: number };
+}
+
 /** Payload dos eventos socket `heartbeat` e `status_mudou` */
 export interface HeartbeatPayload {
   dispositivoId: number;
@@ -318,6 +349,8 @@ export const api = {
     req(`/devices/${id}/ping-history?range=${range}`),
   historicoPingEmpresa: (id: number, range: PingHistoryRange): Promise<PingHistoryPoint[]> =>
     req(`/empresas/${id}/ping-history?range=${range}`),
+  relatorioEmpresa: (id: number, range: PingHistoryRange): Promise<RelatorioEmpresaData> =>
+    req(`/empresas/${id}/relatorio?range=${range}`),
   criarDispositivo: (payload: Partial<Dispositivo>) =>
     req('/dispositivos', { method: 'POST', body: JSON.stringify(payload) }),
   editarDispositivo: (id: number, payload: Partial<Dispositivo>) =>

@@ -18,6 +18,44 @@ body {
   color: #f5f5f7;
 }
 
+/* ---------- impressão do relatório de empresa ----------
+   O relatório (.relatorio-overlay) é um overlay dentro da SPA. Ao imprimir /
+   salvar em PDF, escondemos todo o resto da árvore e deixamos só o documento,
+   ocupando a página inteira em fundo branco. .no-print some (barra de ações). */
+@media print {
+  body {
+    background: #fff !important;
+    background-image: none !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .relatorio-overlay,
+  .relatorio-overlay * {
+    visibility: visible !important;
+  }
+  .relatorio-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+  }
+  .relatorio-paper {
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    margin: 12mm;
+  }
+}
+
 /* ---------- superfícies ----------
    Envolvidas em @layer components pra ficarem ANTES de @tailwind utilities na
    cascata final. Sem isso, classes como .glass-panel (que aplica `relative`)

@@ -10,6 +10,7 @@ import { AuditLog } from '../components/AuditLog';
 import { DeviceDrawer } from '../components/DeviceDrawer';
 import { LinksDedicados } from '../components/LinksDedicados';
 import { PingHistoryChart } from '../components/PingHistoryChart';
+import { RelatorioEmpresa } from './RelatorioEmpresa';
 
 type Aba = 'status' | 'topologia' | 'links' | 'historico' | 'auditoria';
 
@@ -30,6 +31,7 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
   const [formAberto, setFormAberto] = useState(false);
   const [dispositivoEditando, setDispositivoEditando] = useState<Dispositivo | null>(null);
   const [drawerId, setDrawerId] = useState<number | null>(null);
+  const [relatorioAberto, setRelatorioAberto] = useState(false);
 
   async function recarregar() {
     const lista = await api.listarDispositivos(empresa.id);
@@ -169,6 +171,12 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
         {aba === 'links' && <LinksDedicados empresaId={empresa.id} podeEditar={isAdmin} />}
         {aba === 'historico' && (
           <div className="h-full space-y-4 overflow-y-auto pb-4 pr-1 animate-fade-up">
+            <div className="flex items-center justify-between gap-3">
+              <p className="eyebrow">Análise consolidada</p>
+              <button onClick={() => setRelatorioAberto(true)} className="btn-primary shrink-0">
+                Exportar relatório (PDF/CSV)
+              </button>
+            </div>
             <PingHistoryChart
               empresaId={empresa.id}
               title={`Disponibilidade consolidada · ${empresa.nome}`}
@@ -184,6 +192,10 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
 
       {dispositivoDrawer && (
         <DeviceDrawer dispositivo={dispositivoDrawer} onClose={() => setDrawerId(null)} />
+      )}
+
+      {relatorioAberto && (
+        <RelatorioEmpresa empresa={empresa} onClose={() => setRelatorioAberto(false)} />
       )}
 
       {formAberto && (
