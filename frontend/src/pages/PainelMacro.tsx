@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, Empresa, ResumoStatusEmpresa } from '../api';
+import { Empresa, ResumoStatusEmpresa } from '../api';
 import { EmpresaFoto } from '../components/EmpresaFoto';
 import { Paginacao } from '../components/Paginacao';
 import { combinaBusca } from '../lib/busca';
+import { atualizarResumos, resumosEmCache } from '../lib/empresasSnapshot';
 
 const INTERVALO_ATUALIZACAO_MS = 15000;
 const TILES_POR_PAGINA = 30;
@@ -427,8 +428,8 @@ function EsqueletoMural() {
 }
 
 export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => void }) {
-  const [empresas, setEmpresas] = useState<ResumoStatusEmpresa[]>([]);
-  const [carregado, setCarregado] = useState(false);
+  const [empresas, setEmpresas] = useState<ResumoStatusEmpresa[]>(() => resumosEmCache() ?? []);
+  const [carregado, setCarregado] = useState(() => resumosEmCache() !== null);
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState(Date.now());
@@ -440,7 +441,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
   const carregar = useCallback(async () => {
     setAtualizando(true);
     try {
-      const dados = await api.resumoStatusEmpresas();
+      const dados = await atualizarResumos();
       setEmpresas(dados);
       setAtualizadoEm(Date.now());
       setErro(null);

@@ -17,6 +17,7 @@ const empresas = [
 
 test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ page }, testInfo) => {
   const errosDoConsole: string[] = [];
+  let chamadasResumo = 0;
   page.on('console', (mensagem) => {
     if (mensagem.type() === 'error') errosDoConsole.push(mensagem.text());
   });
@@ -31,6 +32,10 @@ test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ 
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ user: null }) });
   });
   await page.route('**/api/empresas/resumo-status', async (route) => {
+    chamadasResumo++;
+    // A primeira carga abastece o snapshot. A seguinte simula uma rede lenta:
+    // a navegação deve continuar mostrando imediatamente o retrato anterior.
+    if (chamadasResumo > 1) await new Promise((resolve) => setTimeout(resolve, 1500));
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(empresas) });
   });
   await page.route('**/api/empresas', async (route) => {
@@ -53,10 +58,12 @@ test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ 
   await page.goto('/');
   await page.locator('#login-usuario').fill('noc.visual');
   await page.locator('#login-senha').fill('teste-visual-seguro');
+  const primeiroResumo = page.waitForResponse((resposta) => resposta.url().includes('/api/empresas/resumo-status'));
   await page.getByRole('button', { name: 'Acessar a central' }).click();
+  await primeiroResumo;
   await page.getByRole('button', { name: 'Visão Macro' }).click();
 
-  await expect(page.getByRole('heading', { name: '3 EMPRESAS EM QUEDA' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '3 EMPRESAS EM QUEDA' })).toBeVisible({ timeout: 900 });
   await expect(page.getByText('Composição da frota')).toBeVisible();
   await expect(page.getByText('47 online', { exact: true })).toBeVisible();
   await expect(page.getByText('6 offline', { exact: true })).toBeVisible();

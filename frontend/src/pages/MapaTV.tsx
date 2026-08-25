@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, Empresa, socket, StatusGlobalPayload } from '../api';
+import { Empresa, ResumoStatusEmpresa, socket, StatusGlobalPayload } from '../api';
 import { MapaEmpresas, StatusMarcador } from '../components/MapaEmpresas';
 import { LogoUptimeXNav } from '../components/LogoUptimeX';
 import { combinaBusca } from '../lib/busca';
+import { atualizarSnapshotEmpresas, empresasEmCache, resumosEmCache } from '../lib/empresasSnapshot';
 
 // Posição do radar de empresas, arrastável pelo operador e lembrada entre sessões.
 const RADAR_POS_CHAVE = 'mapatv_radar_pos';
@@ -34,6 +35,22 @@ interface ResumoEmpresa {
   degradados: number;
   links: number;
   offlineDesde: string | null;
+}
+
+function indexarResumos(resumoLista: ResumoStatusEmpresa[]) {
+  return Object.fromEntries(
+    resumoLista.map((r) => [
+      r.id,
+      {
+        total: Number(r.total),
+        online: Number(r.online),
+        offline: Number(r.offline),
+        degradados: Number(r.degradados),
+        links: Number(r.links_dedicados),
+        offlineDesde: r.offline_desde ?? null,
+      },
+    ])
+  ) as Record<number, ResumoEmpresa>;
 }
 
 /** "há 12min" / "há 1h05" desde o início da queda. */
@@ -97,8 +114,8 @@ function ItemLegenda({ classe, texto }: { classe: string; texto: string }) {
  * sumir com a barra do navegador.
  */
 export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrirEmpresa: (empresa: Empresa) => void }) {
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>({});
+  const [empresas, setEmpresas] = useState<Empresa[]>(() => empresasEmCache() ?? []);
+  const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>(() => indexarResumos(resumosEmCache() ?? []));
   const [atualizadoEm, setAtualizadoEm] = useState<number>(Date.now());
   const [agora, setAgora] = useState<Date>(new Date());
   const [emTelaCheia, setEmTelaCheia] = useState(false);
@@ -135,23 +152,9 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
 
   async function carregar() {
     try {
-      const [lista, resumoLista] = await Promise.all([api.listarEmpresas(), api.resumoStatusEmpresas()]);
+      const [lista, resumoLista] = await atualizarSnapshotEmpresas();
       setEmpresas(lista);
-      setResumos(
-        Object.fromEntries(
-          resumoLista.map((r) => [
-            r.id,
-            {
-              total: Number(r.total),
-              online: Number(r.online),
-              offline: Number(r.offline),
-              degradados: Number(r.degradados),
-              links: Number(r.links_dedicados),
-              offlineDesde: r.offline_desde ?? null,
-            },
-          ])
-        )
-      );
+      setResumos(indexarResumos(resumoLista));
       setAtualizadoEm(Date.now());
     } catch {
       /* mantém o último snapshot se uma atualização falhar */

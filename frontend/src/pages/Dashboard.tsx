@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, Empresa, geocodificarEndereco } from '../api';
+import { api, Empresa, geocodificarEndereco, ResumoStatusEmpresa } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { MapaEmpresas, StatusMarcador } from '../components/MapaEmpresas';
 import { Paginacao } from '../components/Paginacao';
 import { useToast } from '../components/Toast';
 import { combinaBusca } from '../lib/busca';
 import { EmpresaFoto } from '../components/EmpresaFoto';
+import { atualizarSnapshotEmpresas, empresasEmCache, resumosEmCache } from '../lib/empresasSnapshot';
 
 const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'];
 const TAMANHO_MAX = 4 * 1024 * 1024;
@@ -29,6 +30,21 @@ interface ResumoEmpresa {
   offline: number;
   degradados: number;
   links: number;
+}
+
+function indexarResumos(resumoLista: ResumoStatusEmpresa[]) {
+  return Object.fromEntries(
+    resumoLista.map((r) => [
+      r.id,
+      {
+        total: Number(r.total),
+        online: Number(r.online),
+        offline: Number(r.offline),
+        degradados: Number(r.degradados),
+        links: Number(r.links_dedicados),
+      },
+    ])
+  ) as Record<number, ResumoEmpresa>;
 }
 
 function AvatarEmpresa({ empresa }: { empresa: Empresa }) {
@@ -71,8 +87,10 @@ function PinIcon({ className = '' }: { className?: string }) {
 
 export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void }) {
   const { isAdmin } = useAuth();
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>({});
+  const [empresas, setEmpresas] = useState<Empresa[]>(() => empresasEmCache() ?? []);
+  const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>(() =>
+    indexarResumos(resumosEmCache() ?? [])
+  );
   const [formAberto, setFormAberto] = useState(false);
   const [foco, setFoco] = useState<{ latitude: number; longitude: number } | null>(null);
   const [empresaRemovendo, setEmpresaRemovendo] = useState<Empresa | null>(null);
@@ -105,22 +123,9 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
   async function carregar() {
     // Duas chamadas fixas, não importa se são 5 ou 200 empresas:
     // a lista completa + o resumo agregado (uma query no backend).
-    const [lista, resumoLista] = await Promise.all([api.listarEmpresas(), api.resumoStatusEmpresas()]);
+    const [lista, resumoLista] = await atualizarSnapshotEmpresas();
     setEmpresas(lista);
-    setResumos(
-      Object.fromEntries(
-        resumoLista.map((r) => [
-          r.id,
-          {
-            total: Number(r.total),
-            online: Number(r.online),
-            offline: Number(r.offline),
-            degradados: Number(r.degradados),
-            links: Number(r.links_dedicados),
-          },
-        ])
-      )
-    );
+    setResumos(indexarResumos(resumoLista));
   }
 
   useEffect(() => {

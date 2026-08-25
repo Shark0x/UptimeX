@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, conectarSocket, desconectarSocket, Usuario } from '../api';
+import { limparSnapshotEmpresas } from '../lib/empresasSnapshot';
 
 interface AuthState {
   usuario: Usuario | null;
@@ -18,6 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     function aoDeslogarForcado() {
+      limparSnapshotEmpresas();
       setUsuario(null);
       desconectarSocket();
     }
@@ -48,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await api.logout();
     } finally {
       desconectarSocket();
+      limparSnapshotEmpresas();
       setUsuario(null);
     }
   }
