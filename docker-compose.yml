@@ -83,7 +83,10 @@ services:
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
       COOKIE_SECURE: ${COOKIE_SECURE:-auto}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
-      MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
+      # Default aberto (0.0.0.0/0): permite monitorar qualquer IP pingavel,
+      # inclusive redes internas das antenas. Loopback/link-local/multicast
+      # seguem bloqueados pelo guard. Para restringir, defina MONITOR_ALLOWED_CIDRS no .env.
+      MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-0.0.0.0/0}
       SNMP_ALLOWED_PORTS: ${SNMP_ALLOWED_PORTS:-161}
       ALLOW_PRIVATE_DEV_ORIGINS: "false"
       EXTERNAL_GEOCODING_ENABLED: ${EXTERNAL_GEOCODING_ENABLED:-false}
