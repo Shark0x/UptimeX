@@ -33,7 +33,7 @@ interface ResumoEmpresa {
 
 function AvatarEmpresa({ empresa }: { empresa: Empresa }) {
   const fallback = (
-    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-signal-600 to-accent-600 flex items-center justify-center font-display font-semibold text-white shrink-0">
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-signal-600 to-accent-600 flex items-center justify-center font-display font-semibold text-[#fff] shrink-0">
       {empresa.nome.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -439,7 +439,7 @@ function RemoverEmpresaModal({
           <button
             onClick={remover}
             disabled={removendo}
-            className="bg-signal-600 hover:bg-signal-500 text-white font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 disabled:opacity-50"
+            className="bg-signal-600 hover:bg-signal-500 text-[#fff] font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 disabled:opacity-50"
           >
             {removendo ? 'Removendo…' : 'Remover de vez'}
           </button>

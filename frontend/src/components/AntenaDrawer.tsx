@@ -282,7 +282,7 @@ export function AntenaDrawer({
                   key={j.valor}
                   onClick={() => setJanela(j.valor)}
                   className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                    janela === j.valor ? 'bg-signal-600 text-white font-bold' : 'text-muted hover:text-slate-200'
+                    janela === j.valor ? 'bg-signal-600 text-[#fff] font-bold' : 'text-muted hover:text-slate-200'
                   }`}
                 >
                   {j.rotulo}

@@ -36,7 +36,7 @@ const STATUS: Record<
     curto: 'Queda',
     cor: '#FF2B3A',
     texto: 'text-offline',
-    badge: 'border-signal-500/45 bg-signal-600/15 text-red-100',
+    badge: 'border-signal-500/45 bg-signal-600/15 text-[rgb(var(--badge-offline-fg))]',
     card: 'border-signal-500/45 bg-signal-600/[0.075] hover:border-signal-400/80',
     trilho: 'bg-offline',
   },
@@ -45,7 +45,7 @@ const STATUS: Record<
     curto: 'Atenção',
     cor: '#FFB224',
     texto: 'text-warn',
-    badge: 'border-warn/35 bg-warn/10 text-amber-100',
+    badge: 'border-warn/35 bg-warn/10 text-[rgb(var(--badge-degradado-fg))]',
     card: 'border-warn/30 bg-warn/[0.045] hover:border-warn/65',
     trilho: 'bg-warn',
   },
@@ -72,7 +72,7 @@ const STATUS: Record<
     curto: 'No ar',
     cor: '#2FD771',
     texto: 'text-online',
-    badge: 'border-online/30 bg-online/[0.08] text-emerald-100',
+    badge: 'border-online/30 bg-online/[0.08] text-[rgb(var(--badge-online-fg))]',
     card: 'border-online/15 bg-online/[0.025] hover:border-online/40',
     trilho: 'bg-online',
   },
@@ -254,7 +254,7 @@ function ComposicaoFrota({ itens }: { itens: EmpresaClassificada[] }) {
     : 'Nenhum dispositivo monitorado na frota.';
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-black/20 p-3.5 sm:p-4">
+    <div className="rounded-xl border border-white/[0.08] bg-deep-950/20 p-3.5 sm:p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-300">Composição da frota</p>
@@ -391,7 +391,7 @@ function CartaoEmpresa({ item, agora, onSelecionar }: { item: EmpresaClassificad
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <StatusBadge status={status} />
-        {queda && <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-red-100">{queda}</span>}
+        {queda && <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--badge-offline-fg))]">{queda}</span>}
       </div>
 
       <div className="mt-3">
@@ -636,7 +636,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] bg-black/15 px-4 py-3 sm:px-5 lg:px-6">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] bg-deep-950/15 px-4 py-3 sm:px-5 lg:px-6">
           <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted" aria-live="polite">
             <span className="relative flex h-2 w-2">
               {!erro && <span className="absolute inline-flex h-full w-full rounded-full bg-online/40 animate-sonar" />}
@@ -661,11 +661,11 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
           <div className="flex items-start gap-2.5">
             <StatusGlyph status="offline" className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-display text-sm font-semibold text-red-100">Dados possivelmente desatualizados</p>
+              <p className="font-display text-sm font-semibold text-[rgb(var(--badge-offline-fg))]">Dados possivelmente desatualizados</p>
               <p className="mt-0.5 text-xs text-slate-300">{erro}</p>
             </div>
           </div>
-          <button type="button" onClick={carregar} className="min-h-11 shrink-0 px-2 font-mono text-[10px] uppercase tracking-wider text-signal-400 hover:text-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-400">
+          <button type="button" onClick={carregar} className="min-h-11 shrink-0 px-2 font-mono text-[10px] uppercase tracking-wider text-signal-400 hover:text-[rgb(var(--badge-offline-fg))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-400">
             Tentar novamente
           </button>
         </div>
@@ -711,7 +711,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
                       }`}
                     >
                       {opcao.rotulo}
-                      <span className={`rounded px-1.5 py-0.5 tabular-nums ${ativo ? 'bg-signal-500/20 text-red-100' : 'bg-white/[0.05] text-slate-400'}`}>{opcao.total}</span>
+                      <span className={`rounded px-1.5 py-0.5 tabular-nums ${ativo ? 'bg-signal-500/20 text-[rgb(var(--badge-offline-fg))]' : 'bg-white/[0.05] text-slate-400'}`}>{opcao.total}</span>
                     </button>
                   );
                 })}

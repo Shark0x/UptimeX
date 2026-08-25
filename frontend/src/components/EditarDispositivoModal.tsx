@@ -113,7 +113,7 @@ export function EditarDispositivoModal({
               <button
                 onClick={remover}
                 disabled={removendo}
-                className="bg-signal-600 hover:bg-signal-500 text-white font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 disabled:opacity-50"
+                className="bg-signal-600 hover:bg-signal-500 text-[#fff] font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 disabled:opacity-50"
               >
                 {removendo ? 'Removendo…' : 'Remover de vez'}
               </button>

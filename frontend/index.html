@@ -7,6 +7,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>uptimeX — Central de Operações</title>
+    <!-- Aplica o tema salvo antes da 1ª pintura, evitando "flash" do tema errado. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('uptimex_tema');
+          document.documentElement.dataset.theme =
+            t === 'claro' || t === 'cinza' || t === 'escuro' ? t : 'escuro';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'escuro';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

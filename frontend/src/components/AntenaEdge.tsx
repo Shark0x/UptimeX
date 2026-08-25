@@ -168,7 +168,7 @@ export const AntenaEdge = memo(function AntenaEdge({
                 data.onDelete?.(id);
               }}
               title="Remover este enlace"
-              className="p-1 bg-signal-600 hover:bg-signal-500 text-white rounded-full shadow-lg transition-transform hover:scale-110"
+              className="p-1 bg-signal-600 hover:bg-signal-500 text-[#fff] rounded-full shadow-lg transition-transform hover:scale-110"
             >
               <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
                 <line x1="18" y1="6" x2="6" y2="18" />

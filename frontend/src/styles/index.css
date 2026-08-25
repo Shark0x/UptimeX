@@ -2,6 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ================= TEMAS =================
+   Os tokens deep/slate/muted/white (tailwind.config.js) apontam para estas
+   variáveis (RGB separado por espaço). Trocar `data-theme` no <html> repinta o
+   app inteiro. `:root` sem atributo = Escuro (fallback se o JS falhar). */
+:root,
+:root[data-theme='escuro'] {
+  /* Texto dos badges de status sobre a pílula tingida: tom claro p/ fundo escuro. */
+  --badge-offline-fg: 254 226 226;
+  --badge-degradado-fg: 254 243 199;
+  --badge-online-fg: 209 250 229;
+  --deep-950: 6 6 7;
+  --deep-900: 11 11 15;
+  --deep-800: 18 18 24;
+  --deep-700: 27 27 35;
+  --deep-600: 38 38 47;
+  --c-white: 255 255 255;
+  --muted: 130 130 142;
+  --logo-ink: 245 244 242;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+}
+
+/* Claro: superfícies claras + slate invertido (shade alto = texto escuro).
+   --c-white escuro faz as bordas/hovers `white/opacity` virarem fios sutis. */
+:root[data-theme='claro'] {
+  /* Fundo claro: o texto do badge precisa ser escuro e saturado p/ contrastar. */
+  --badge-offline-fg: 185 28 28;
+  --badge-degradado-fg: 146 64 14;
+  --badge-online-fg: 6 95 70;
+  --deep-950: 255 255 255;
+  --deep-900: 247 248 250;
+  --deep-800: 240 242 246;
+  --deep-700: 228 231 237;
+  --deep-600: 214 219 227;
+  --c-white: 17 20 27;
+  --muted: 96 104 118;
+  --logo-ink: 26 29 36;
+  --slate-50: 15 23 42;
+  --slate-100: 23 31 49;
+  --slate-200: 40 51 69;
+  --slate-300: 60 72 92;
+  --slate-400: 96 108 124;
+  --slate-500: 120 132 148;
+  --slate-600: 150 160 175;
+  --slate-700: 190 198 210;
+  --slate-800: 215 221 230;
+  --slate-900: 236 240 245;
+  --slate-950: 248 250 253;
+}
+
+/* Cinza: grafite médio, texto claro (menos contraste que o Escuro). */
+:root[data-theme='cinza'] {
+  --badge-offline-fg: 254 226 226;
+  --badge-degradado-fg: 254 243 199;
+  --badge-online-fg: 209 250 229;
+  --deep-950: 30 33 39;
+  --deep-900: 38 42 50;
+  --deep-800: 49 54 64;
+  --deep-700: 63 69 82;
+  --deep-600: 82 90 105;
+  --c-white: 255 255 255;
+  --muted: 165 171 184;
+  --logo-ink: 245 244 242;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 170 180 195;
+  --slate-500: 140 150 165;
+  --slate-600: 120 130 145;
+  --slate-700: 100 110 125;
+  --slate-800: 80 90 105;
+  --slate-900: 60 68 82;
+  --slate-950: 40 46 58;
+}
+
+/* O relatório é um DOCUMENTO: paleta fixa clara, ignora o tema do app.
+   Fixamos as variáveis no próprio overlay — elas cascateiam pra dentro. */
+.relatorio-overlay {
+  --deep-950: 255 255 255;
+  --deep-900: 247 248 250;
+  --deep-800: 240 242 246;
+  --deep-700: 228 231 237;
+  --deep-600: 214 219 227;
+  --c-white: 255 255 255;
+  --muted: 130 130 142;
+  --logo-ink: 245 244 242;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+}
+
+/* Murais de TV (Mapa TV / Antenas TV) são pra parede do NOC: sempre escuros,
+   independentemente do tema escolhido no app. */
+.tema-escuro-fixo {
+  --deep-950: 6 6 7;
+  --deep-900: 11 11 15;
+  --deep-800: 18 18 24;
+  --deep-700: 27 27 35;
+  --deep-600: 38 38 47;
+  --c-white: 255 255 255;
+  --muted: 130 130 142;
+  --logo-ink: 245 244 242;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+}
+
 body {
   @apply bg-deep-950 text-slate-200 font-body antialiased;
   background-image:
@@ -135,7 +268,7 @@ body {
   }
 
   .btn-primary {
-    @apply relative overflow-hidden bg-gradient-to-r from-signal-600 to-accent-600 hover:from-signal-500 hover:to-accent-500 text-white font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 shadow-glow-signal disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98];
+    @apply relative overflow-hidden bg-gradient-to-r from-signal-600 to-accent-600 hover:from-signal-500 hover:to-accent-500 text-[#fff] font-display font-semibold text-sm px-4 py-2 rounded-xl transition-all duration-150 shadow-glow-signal disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98];
   }
   /* brilho que varre o botão no hover */
   .btn-primary::after {
@@ -517,7 +650,7 @@ body {
   background:
     radial-gradient(circle at 8% 18%, rgba(255, 43, 58, 0.13), transparent 32%),
     radial-gradient(circle at 88% 12%, rgba(143, 15, 29, 0.11), transparent 30%),
-    linear-gradient(135deg, rgba(18, 18, 24, 0.97), rgba(6, 6, 7, 0.96));
+    linear-gradient(135deg, rgb(var(--deep-800) / 0.97), rgb(var(--deep-950) / 0.96));
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
 }
 
@@ -529,8 +662,8 @@ body {
   pointer-events: none;
   opacity: 0.32;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    linear-gradient(rgb(var(--c-white) / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--c-white) / 0.025) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: linear-gradient(to right, black, transparent 72%);
 }
@@ -559,7 +692,7 @@ body {
 }
 
 .macro-fleet-track {
-  stroke: rgba(255, 255, 255, 0.06);
+  stroke: rgb(var(--c-white) / 0.06);
 }
 
 .macro-fleet-segment {
@@ -581,8 +714,8 @@ body {
 .macro-fleet-bar--desconhecido { background: #8e8e99; }
 
 .macro-company-card {
-  background-color: rgba(11, 11, 15, 0.96);
-  background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 45%);
+  background-color: rgb(var(--deep-900) / 0.96);
+  background-image: linear-gradient(145deg, rgb(var(--c-white) / 0.025), transparent 45%);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
   transition:
     border-color 180ms ease-out,
@@ -592,17 +725,17 @@ body {
 }
 
 .macro-company-card[data-status='offline'] {
-  background-color: rgba(19, 8, 11, 0.97);
+  background-color: rgb(var(--deep-900) / 0.96);
   background-image: linear-gradient(145deg, rgba(255, 43, 58, 0.12), transparent 52%);
 }
 
 .macro-company-card[data-status='degradado'] {
-  background-color: rgba(17, 13, 8, 0.97);
+  background-color: rgb(var(--deep-900) / 0.96);
   background-image: linear-gradient(145deg, rgba(255, 178, 36, 0.08), transparent 52%);
 }
 
 .macro-company-card[data-status='online'] {
-  background-color: rgba(8, 16, 12, 0.97);
+  background-color: rgb(var(--deep-900) / 0.96);
   background-image: linear-gradient(145deg, rgba(47, 215, 113, 0.055), transparent 52%);
 }
 

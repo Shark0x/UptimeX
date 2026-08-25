@@ -117,23 +117,27 @@ export default function App() {
   // Clicar numa sede abre o painel dela; "voltar" retorna ao próprio mapa.
   if (vista === 'tv')
     return (
-      <MapaTV
-        onSair={() => setVista('dashboard')}
-        onAbrirEmpresa={(e) => {
-          setOrigemEmpresa('tv');
-          setEmpresaAtiva(e);
-          irPara('empresa');
-        }}
-      />
+      <div className="tema-escuro-fixo">
+        <MapaTV
+          onSair={() => setVista('dashboard')}
+          onAbrirEmpresa={(e) => {
+            setOrigemEmpresa('tv');
+            setEmpresaAtiva(e);
+            irPara('empresa');
+          }}
+        />
+      </div>
     );
 
   // Visualização fullscreen do mapa de antenas: mesmo mecanismo do Mapa TV, mas
   // "voltar" retorna ao editor de Antenas (não ao painel inicial).
   if (vista === 'antenas-tv')
     return (
-      <Suspense fallback={<div className="fixed inset-0 z-[60] bg-deep-950 flex items-center justify-center text-sm font-mono text-muted">Carregando visualização...</div>}>
-        <AntenaMapaTV onSair={() => setVista('antenas')} />
-      </Suspense>
+      <div className="tema-escuro-fixo">
+        <Suspense fallback={<div className="fixed inset-0 z-[60] bg-deep-950 flex items-center justify-center text-sm font-mono text-muted">Carregando visualização...</div>}>
+          <AntenaMapaTV onSair={() => setVista('antenas')} />
+        </Suspense>
+      </div>
     );
 
   function selecionarEmpresa(e: Empresa) {

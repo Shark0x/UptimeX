@@ -41,7 +41,7 @@ export function MarcaUptimeX({ largura = 240, animada = false }: { largura?: num
       <path
         className={animada ? 'uptx-arestas' : undefined}
         d="M30 108 L66 84 M66 84 L52 52 M66 84 L104 96 M52 52 L104 96 M52 52 L112 44"
-        stroke="#f5f4f2"
+        stroke="rgb(var(--logo-ink))"
         strokeWidth="2.5"
         opacity="0.45"
       />
@@ -55,13 +55,13 @@ export function MarcaUptimeX({ largura = 240, animada = false }: { largura?: num
         />
       </g>
       <g className={clsNo} style={atraso('no-1')}>
-        <circle cx="30" cy="108" r="6" fill="#f5f4f2" opacity="0.55" />
+        <circle cx="30" cy="108" r="6" fill="rgb(var(--logo-ink))" opacity="0.55" />
       </g>
       <g className={clsNo} style={atraso('no-2')}>
-        <circle cx="52" cy="52" r="6" fill="#f5f4f2" opacity="0.8" />
+        <circle cx="52" cy="52" r="6" fill="rgb(var(--logo-ink))" opacity="0.8" />
       </g>
       <g className={clsNo} style={atraso('no-3')}>
-        <circle cx="66" cy="84" r="7" fill="#f5f4f2" />
+        <circle cx="66" cy="84" r="7" fill="rgb(var(--logo-ink))" />
       </g>
       <g className={clsNo} style={atraso('no-4')}>
         <circle cx="112" cy="44" r="6" fill="#ff6a52" />
@@ -82,7 +82,7 @@ export function LogoUptimeXNav() {
     <span className="flex items-center gap-2">
       <MarcaUptimeX largura={52} />
       <span className="flex items-baseline font-sora font-extrabold tracking-[-0.03em] text-lg leading-none">
-        <span className="text-[#f5f4f2]">uptime</span>
+        <span style={{ color: 'rgb(var(--logo-ink))' }}>uptime</span>
         <span
           className="text-transparent bg-clip-text"
           style={{ backgroundImage: 'linear-gradient(160deg, #ff6a52, #e02832)' }}
@@ -100,7 +100,7 @@ export function LockupUptimeX({ larguraMarca = 240, animada = false }: { largura
     <div className="flex flex-col gap-2">
       <MarcaUptimeX largura={larguraMarca} animada={animada} />
       <div className="flex items-baseline font-sora font-extrabold tracking-[-0.03em] text-5xl md:text-6xl leading-none">
-        <span className="text-[#f5f4f2]">uptime</span>
+        <span style={{ color: 'rgb(var(--logo-ink))' }}>uptime</span>
         <span
           className="text-transparent bg-clip-text"
           style={{ backgroundImage: 'linear-gradient(160deg, #ff6a52, #e02832)' }}

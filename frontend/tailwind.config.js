@@ -4,14 +4,36 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Superfícies: preto profundo → grafite carbono
+        // Superfícies e texto são "theme-able": os tokens apontam para variáveis
+        // CSS (RGB separado por espaço) que trocam conforme o data-theme no <html>.
+        // Ver os valores por tema em styles/index.css. Assim as ~600 utilities de
+        // cor existentes viram claro/cinza/escuro sem tocar nos componentes.
         deep: {
-          950: '#060607',
-          900: '#0B0B0F',
-          800: '#121218',
-          700: '#1B1B23',
-          600: '#26262F',
+          950: 'rgb(var(--deep-950) / <alpha-value>)',
+          900: 'rgb(var(--deep-900) / <alpha-value>)',
+          800: 'rgb(var(--deep-800) / <alpha-value>)',
+          700: 'rgb(var(--deep-700) / <alpha-value>)',
+          600: 'rgb(var(--deep-600) / <alpha-value>)',
         },
+        // "white" é remapeado: em tema claro vira um tom escuro, então bordas e
+        // hovers `white/opacity` viram fios sutis escuros. Texto branco sólido é
+        // protegido com text-[#fff] onde precisa continuar branco (botões).
+        white: 'rgb(var(--c-white) / <alpha-value>)',
+        muted: 'rgb(var(--muted) / <alpha-value>)',
+        slate: {
+          50: 'rgb(var(--slate-50) / <alpha-value>)',
+          100: 'rgb(var(--slate-100) / <alpha-value>)',
+          200: 'rgb(var(--slate-200) / <alpha-value>)',
+          300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+          500: 'rgb(var(--slate-500) / <alpha-value>)',
+          600: 'rgb(var(--slate-600) / <alpha-value>)',
+          700: 'rgb(var(--slate-700) / <alpha-value>)',
+          800: 'rgb(var(--slate-800) / <alpha-value>)',
+          900: 'rgb(var(--slate-900) / <alpha-value>)',
+          950: 'rgb(var(--slate-950) / <alpha-value>)',
+        },
+        // Marca e status permanecem fixos — legíveis em qualquer fundo.
         // Vermelho-sinal: o único acento vivo da interface
         signal: {
           400: '#FF4D5A',
@@ -28,7 +50,6 @@ export default {
         online: '#2FD771',
         offline: '#FF2B3A',
         warn: '#FFB224',
-        muted: '#82828E',
       },
       fontFamily: {
         display: ['"Chakra Petch"', 'sans-serif'],
