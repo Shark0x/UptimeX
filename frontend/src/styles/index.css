@@ -8,6 +8,8 @@
    app inteiro. `:root` sem atributo = Escuro (fallback se o JS falhar). */
 :root,
 :root[data-theme='escuro'] {
+  /* Controles nativos (select, setas, spinners, scrollbar) seguem o tema, nao o SO. */
+  color-scheme: dark;
   /* Texto dos badges de status sobre a pílula tingida: tom claro p/ fundo escuro. */
   --badge-offline-fg: 254 226 226;
   --badge-degradado-fg: 254 243 199;
@@ -36,6 +38,7 @@
 /* Claro: superfícies claras + slate invertido (shade alto = texto escuro).
    --c-white escuro faz as bordas/hovers `white/opacity` virarem fios sutis. */
 :root[data-theme='claro'] {
+  color-scheme: light;
   /* Fundo claro: o texto do badge precisa ser escuro e saturado p/ contrastar. */
   --badge-offline-fg: 185 28 28;
   --badge-degradado-fg: 146 64 14;
@@ -63,6 +66,7 @@
 
 /* Cinza: grafite médio, texto claro (menos contraste que o Escuro). */
 :root[data-theme='cinza'] {
+  color-scheme: dark;
   --badge-offline-fg: 254 226 226;
   --badge-degradado-fg: 254 243 199;
   --badge-online-fg: 209 250 229;
