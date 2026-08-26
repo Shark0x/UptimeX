@@ -397,6 +397,14 @@ body {
   opacity: 0.7;
   animation: sonarPing 2s ease-out infinite;
 }
+/* O MapLibre posiciona o pino via transform a partir da origem do mapa, então o
+   elemento PRECISA ser position:absolute. Sem isto, o position:relative acima
+   deixa o pino no fluxo normal e ele "desgruda" do ponto (não fica fixo no
+   endereço) ao dar zoom/arrastar. Escopo só no marcador do mapa — que carrega as
+   duas classes — pra não afetar a legenda, que usa .marcador-empresa sozinho. */
+.maplibregl-marker.marcador-empresa {
+  position: absolute;
+}
 
 .marcador-online {
   --cor-marcador: #2fd771;
