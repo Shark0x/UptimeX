@@ -364,9 +364,9 @@ body {
   display: none;
 }
 
-/* ---------- mapa (leaflet) ---------- */
+/* ---------- mapa (maplibre / openfreemap) ---------- */
 
-.leaflet-container {
+.maplibregl-map {
   background: #060607;
   font-family: inherit;
 }
@@ -438,43 +438,52 @@ body {
   box-shadow: 0 0 18px var(--cor-marcador), 0 0 0 3px rgba(255, 255, 255, 0.16);
 }
 
+/* Tooltips do mapa = popups do MapLibre. Estilizamos a caixa (.maplibregl-popup-content)
+   e a setinha (.maplibregl-popup-tip); pointer-events:none no invólucro evita flicker
+   quando o popup de hover aparece sobre o pino. */
 .tooltip-mapa {
-  background: rgba(11, 11, 15, 0.92) !important;
-  border: 1px solid rgba(255, 43, 58, 0.35) !important;
-  border-radius: 8px !important;
-  color: #e9eaf2 !important;
-  font-family: 'IBM Plex Mono', monospace !important;
-  font-size: 11px !important;
-  padding: 3px 8px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+  pointer-events: none;
 }
-.tooltip-mapa::before {
-  border-top-color: rgba(255, 43, 58, 0.35) !important;
+.tooltip-mapa .maplibregl-popup-content {
+  background: rgba(11, 11, 15, 0.92);
+  border: 1px solid rgba(255, 43, 58, 0.35);
+  border-radius: 8px;
+  color: #e9eaf2;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+.tooltip-mapa .maplibregl-popup-tip {
+  border-top-color: rgba(11, 11, 15, 0.92) !important;
 }
 
 /* Rótulo fixo da queda no mural da TV: nome compacto, tamanho controlado */
 .tooltip-quedatv {
+  pointer-events: none;
+}
+.tooltip-quedatv .maplibregl-popup-content {
   max-width: 168px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: rgba(22, 5, 7, 0.95) !important;
-  border: 1px solid #ff2b3a !important;
-  border-radius: 8px !important;
-  color: #fff !important;
-  font-family: inherit !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
-  line-height: 1.2 !important;
-  padding: 2px 9px !important;
-  box-shadow: 0 3px 14px rgba(255, 43, 58, 0.4) !important;
+  background: rgba(22, 5, 7, 0.95);
+  border: 1px solid #ff2b3a;
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 2px 9px;
+  box-shadow: 0 3px 14px rgba(255, 43, 58, 0.4);
   animation: nomeQuedaPulsa 1.25s ease-in-out infinite;
 }
 @keyframes nomeQuedaPulsa {
   0%, 100% { opacity: 1; box-shadow: 0 3px 14px rgba(255, 43, 58, 0.42); }
   50% { opacity: 0.58; box-shadow: 0 3px 24px rgba(255, 43, 58, 0.78); }
 }
-.tooltip-quedatv::before {
+.tooltip-quedatv .maplibregl-popup-tip {
   border-top-color: #ff2b3a !important;
 }
 /* Escondido pelo anti-sobreposição (declutter) */
@@ -492,29 +501,40 @@ body {
   animation: radarQuedaPulsa 1.25s ease-in-out infinite;
 }
 
-.leaflet-control-zoom a {
+.maplibregl-ctrl-group {
   background: rgba(11, 11, 15, 0.92) !important;
-  color: #82828e !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-.leaflet-control-zoom a:hover {
-  color: #ff4d5a !important;
-  background: rgba(18, 18, 24, 0.95) !important;
-}
-.leaflet-bar {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 10px !important;
   overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+.maplibregl-ctrl-group button {
+  width: 30px;
+  height: 30px;
+  background: transparent !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+/* Ícones de zoom são SVG escuros por padrão; clareia pro tema dark e realça no hover */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(0.62);
+}
+.maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon {
+  filter: invert(0.85);
 }
 
-.leaflet-control-attribution {
+.maplibregl-ctrl-attrib {
   background: rgba(6, 6, 7, 0.72) !important;
   color: #5a5a64 !important;
   font-size: 9px !important;
   font-family: 'IBM Plex Mono', monospace !important;
 }
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib a {
   color: #82828e !important;
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(0.62);
 }
 
 /* ---------- transição entre telas: continuidade espacial ---------- */
@@ -794,7 +814,7 @@ body {
      degradação e o "sinal vivo" seguem animando mesmo com "reduzir movimento"
      ligado no sistema — só as animações decorativas (entrada de tela, HUD,
      pacotes do login) é que ficam calmas. */
-  .tooltip-quedatv {
+  .tooltip-quedatv .maplibregl-popup-content {
     animation: nomeQuedaPulsa 1.25s ease-in-out infinite !important;
   }
   .marcador-offline::before {

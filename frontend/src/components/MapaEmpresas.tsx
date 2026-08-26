@@ -1,10 +1,19 @@
 import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { Empresa } from '../api';
 
-// Visão inicial quando nenhuma empresa tem coordenada ainda (Brasil inteiro)
-const CENTRO_PADRAO: [number, number] = [-14.2, -51.9];
+// Basemap escuro do OpenFreeMap, servido pelo proxy do backend (/api/map/basemap)
+// pra CSP do front seguir 'connect-src self'. Mesma resolucao de base do api.ts:
+// em producao VITE_API_URL=/api (mesma origem, atras do nginx).
+const HOST_ATUAL = window.location.hostname || 'localhost';
+const PROTOCOLO_ATUAL = window.location.protocol === 'https:' ? 'https:' : 'http:';
+const API_BASE = import.meta.env.VITE_API_URL || `${PROTOCOLO_ATUAL}//${HOST_ATUAL}:4000/api`;
+const ESTILO_MAPA = `${API_BASE}/map/basemap/styles/dark`;
+
+// Visão inicial quando nenhuma empresa tem coordenada ainda (Brasil inteiro).
+// MapLibre usa [longitude, latitude] (o inverso do Leaflet).
+const CENTRO_PADRAO: [number, number] = [-51.9, -14.2];
 const ZOOM_PADRAO = 4;
 // Zoom usado quando todas as sedes estão na mesma cidade — mostra a malha urbana
 const ZOOM_CIDADE = 13;
@@ -14,24 +23,24 @@ function comCoordenadas(empresas: Empresa[]) {
 }
 
 /** Enquadra o mapa nas sedes com coordenada (uma sede = zoom de cidade). */
-function enquadrarNasSedes(mapa: L.Map, pontos: Empresa[]) {
+function enquadrarNasSedes(mapa: maplibregl.Map, pontos: Empresa[]) {
   if (pontos.length === 1) {
-    mapa.setView([Number(pontos[0].latitude), Number(pontos[0].longitude)], ZOOM_CIDADE);
+    mapa.jumpTo({ center: [Number(pontos[0].longitude), Number(pontos[0].latitude)], zoom: ZOOM_CIDADE });
   } else if (pontos.length > 1) {
-    const limites = L.latLngBounds(pontos.map((e) => [Number(e.latitude), Number(e.longitude)] as [number, number]));
-    mapa.fitBounds(limites, { padding: [42, 42], maxZoom: ZOOM_CIDADE });
+    const limites = new maplibregl.LngLatBounds();
+    pontos.forEach((e) => limites.extend([Number(e.longitude), Number(e.latitude)]));
+    mapa.fitBounds(limites, { padding: 42, maxZoom: ZOOM_CIDADE, duration: 0 });
   }
 }
 
-// Nome vai pra dentro do HTML do rótulo — escapar evita quebrar o balão (ou injeção).
-function escaparHtml(texto: string): string {
-  return texto.replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)
-  );
-}
-
 export type StatusMarcador = 'online' | 'degradado' | 'offline' | 'sem';
+
+const ROTULO_STATUS: Record<StatusMarcador, string> = {
+  offline: '🔴 queda',
+  degradado: '🟡 atenção',
+  online: '🟢 no ar',
+  sem: 'sem monitor',
+};
 
 /**
  * Mapa fixo na área de atuação: enquadra as sedes cadastradas e só se move
@@ -67,8 +76,10 @@ export function MapaEmpresas({
   quedasRecentes?: Set<number>;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
-  const mapaRef = useRef<L.Map | null>(null);
-  const camadaRef = useRef<L.LayerGroup | null>(null);
+  const mapaRef = useRef<maplibregl.Map | null>(null);
+  // Marcadores e popups vivos (recriados a cada poll); guardados pra limpeza.
+  const marcadoresRef = useRef<maplibregl.Marker[]>([]);
+  const popupsRef = useRef<maplibregl.Popup[]>([]);
   // Callback de clique sempre atual, sem precisar redesenhar os pinos a cada render
   const aoSelecionarRef = useRef(onSelecionarEmpresa);
   useEffect(() => {
@@ -82,12 +93,12 @@ export function MapaEmpresas({
 
   // Rótulos fixos das quedas + anti-sobreposição. Esconde o rótulo que colidiria
   // com um já visível (recalculado ao mover/zoom); a lista lateral tem todos.
-  const rotulosRef = useRef<L.Marker[]>([]);
+  const rotulosRef = useRef<maplibregl.Popup[]>([]);
   const declutterRef = useRef<() => void>(() => {});
   function declutter() {
     const ocupados: DOMRect[] = [];
-    for (const m of rotulosRef.current) {
-      const el = m.getTooltip()?.getElement() as HTMLElement | undefined;
+    for (const p of rotulosRef.current) {
+      const el = p.getElement();
       if (!el) continue;
       el.classList.remove('rotulo-oculto');
       const r = el.getBoundingClientRect();
@@ -104,90 +115,112 @@ export function MapaEmpresas({
     const div = divRef.current;
     if (!div) return;
 
-    const mapa = L.map(div, {
+    const mapa = new maplibregl.Map({
+      container: div,
+      style: ESTILO_MAPA,
       center: CENTRO_PADRAO,
       zoom: ZOOM_PADRAO,
-      zoomControl: true,
-      attributionControl: true,
-      scrollWheelZoom: true,
-      worldCopyJump: true,
+      attributionControl: { compact: true },
+      // O worker do MapLibre (que baixa os tiles .pbf) não tem document.baseURI,
+      // então URL raiz-relativa (/api/map/...) rebenta com "Failed to parse URL".
+      // Absolutizamos aqui, na main thread, antes de mandar pro worker. As chamadas
+      // do basemap batem em /api/map (mesma origem via nginx) e precisam do cookie
+      // de sessão — o proxy fica atrás do login, como antes.
+      transformRequest: (url) => {
+        const abs = url.startsWith('/') ? window.location.origin + url : url;
+        return abs.includes('/api/map/') ? { url: abs, credentials: 'include' } : { url: abs };
+      },
     });
+    mapa.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
-    L.tileLayer('/api/map/tiles/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(mapa);
-
-    camadaRef.current = L.layerGroup().addTo(mapa);
     mapaRef.current = mapa;
 
     // Ao mover/dar zoom, os rótulos mudam de posição — refaz o anti-sobreposição
-    mapa.on('zoomend moveend', () => declutterRef.current());
+    mapa.on('zoomend', () => declutterRef.current());
+    mapa.on('moveend', () => declutterRef.current());
 
     // O painel pode mudar de tamanho (responsivo/painéis vizinhos); sem isso o
-    // Leaflet renderiza tiles pela metade quando o container cresce depois do mount.
-    const observador = new ResizeObserver(() => mapa.invalidateSize());
+    // MapLibre renderiza o canvas pela metade quando o container cresce depois do mount.
+    const observador = new ResizeObserver(() => mapa.resize());
     observador.observe(div);
 
     return () => {
       observador.disconnect();
+      marcadoresRef.current.forEach((m) => m.remove());
+      popupsRef.current.forEach((p) => p.remove());
+      marcadoresRef.current = [];
+      popupsRef.current = [];
+      rotulosRef.current = [];
       mapa.remove();
       mapaRef.current = null;
-      camadaRef.current = null;
     };
   }, []);
 
   // Marcadores acompanham cadastro E status ao vivo (redesenhados a cada poll)
   useEffect(() => {
-    const camada = camadaRef.current;
-    if (!camada) return;
+    const mapa = mapaRef.current;
+    if (!mapa) return;
 
-    camada.clearLayers();
+    // Limpa os marcadores/popups do ciclo anterior
+    marcadoresRef.current.forEach((m) => m.remove());
+    popupsRef.current.forEach((p) => p.remove());
+    marcadoresRef.current = [];
+    popupsRef.current = [];
     rotulosRef.current = [];
+
     const tamanho = modoVitrine ? 26 : 14;
+    const recuo = tamanho / 2 + 6;
     comCoordenadas(empresas).forEach((e) => {
       const status = statusPorEmpresa[e.id] ?? 'sem';
       // Queda antiga já foi vista pelo suporte: pino vermelho quieto, sem alarde
       const recente = quedasRecentes ? quedasRecentes.has(e.id) : true;
       const quieto = status === 'offline' && !recente ? ' marcador-quieto' : '';
-      const icone = L.divIcon({
-        className: '',
-        html: `<span class="marcador-empresa marcador-${status}${modoVitrine ? ' marcador-grande' : ''}${quieto}"></span>`,
-        iconSize: [tamanho, tamanho],
-        iconAnchor: [tamanho / 2, tamanho / 2],
-      });
+
+      const el = document.createElement('span');
+      el.className = `marcador-empresa marcador-${status}${modoVitrine ? ' marcador-grande' : ''}${quieto}`;
+      el.style.cursor = 'pointer';
       // Clique no pino leva direto ao painel da empresa (config, dispositivos…)
-      const marcador = L.marker([Number(e.latitude), Number(e.longitude)], { icon: icone }).on(
-        'click',
-        () => aoSelecionarRef.current?.(e)
-      );
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        aoSelecionarRef.current?.(e);
+      });
+
+      const coord: [number, number] = [Number(e.longitude), Number(e.latitude)];
+      const marcador = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(mapa);
+      marcadoresRef.current.push(marcador);
 
       if (rotularQuedas && status === 'offline' && recente) {
         // Nome fixo em cima da empresa que caiu (Mapa TV). O declutter esconde os
         // que se sobreporiam; a lista lateral mantém todos legíveis.
-        marcador.bindTooltip(escaparHtml(e.nome), {
-          direction: 'top',
-          offset: [0, -tamanho / 2 - 3],
+        const rotulo = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          anchor: 'bottom',
+          offset: recuo,
           className: 'tooltip-quedatv',
-          permanent: true,
-          opacity: 1,
-        });
-        rotulosRef.current.push(marcador);
+        })
+          .setLngLat(coord)
+          .setText(e.nome)
+          .addTo(mapa);
+        popupsRef.current.push(rotulo);
+        rotulosRef.current.push(rotulo);
       } else {
-        const rotulo =
-          status === 'offline' ? '🔴 queda' : status === 'degradado' ? '🟡 atenção' : status === 'online' ? '🟢 no ar' : 'sem monitor';
-        marcador.bindTooltip(`${e.nome} · ${rotulo}`, {
-          direction: 'top',
-          offset: [0, -tamanho / 2 - 3],
+        // Tooltip de hover: nome + status. Aparece ao passar o mouse no pino.
+        const dica = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          anchor: 'bottom',
+          offset: recuo,
           className: 'tooltip-mapa',
-        });
+        }).setText(`${e.nome} · ${ROTULO_STATUS[status]}`);
+        popupsRef.current.push(dica);
+        el.addEventListener('mouseenter', () => dica.setLngLat(coord).addTo(mapa));
+        el.addEventListener('mouseleave', () => dica.remove());
       }
-      marcador.addTo(camada);
     });
-    // Espera o Leaflet posicionar os rótulos antes de medir a sobreposição
+    // Espera o MapLibre posicionar os rótulos antes de medir a sobreposição
     requestAnimationFrame(() => declutterRef.current());
-  }, [empresas, statusPorEmpresa, rotularQuedas, quedasRecentes]);
+  }, [empresas, statusPorEmpresa, rotularQuedas, quedasRecentes, modoVitrine]);
 
   // Enquadramento só quando o CONJUNTO de sedes muda de fato — atualização de
   // status a cada 15s não pode roubar o mapa de quem está navegando nele
@@ -213,7 +246,7 @@ export function MapaEmpresas({
   useEffect(() => {
     const mapa = mapaRef.current;
     if (!mapa || !foco) return;
-    mapa.flyTo([foco.latitude, foco.longitude], Math.max(mapa.getZoom(), ZOOM_CIDADE), { duration: 0.8 });
+    mapa.flyTo({ center: [foco.longitude, foco.latitude], zoom: Math.max(mapa.getZoom(), ZOOM_CIDADE), duration: 800 });
   }, [foco]);
 
   return (
