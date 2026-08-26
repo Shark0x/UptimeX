@@ -184,6 +184,10 @@ const camposEnlaceAntena = {
   espessura: z.coerce.number().finite().min(0.5).max(20).optional().nullable(),
   estilo: z.enum(['solida', 'tracejada', 'pontilhada']).optional().nullable(),
   animado: z.boolean().optional().nullable(),
+  origem_lado: z.enum(['auto', 'topo', 'base', 'esq', 'dir']).optional().nullable(),
+  destino_lado: z.enum(['auto', 'topo', 'base', 'esq', 'dir']).optional().nullable(),
+  formato: z.enum(['reta', 'curva', 'raio']).optional().nullable(),
+  mostrar_label: z.boolean().optional(),
 };
 
 export const criarEnlaceAntenaSchema = z.object({
@@ -195,13 +199,22 @@ export const criarEnlaceAntenaSchema = z.object({
   path: ['destino_node_id'],
 });
 
-export const editarEnlaceAntenaSchema = z.object(camposEnlaceAntena)
-  .refine((valor) => Object.keys(valor).length > 0, 'Informe algo para alterar.');
+export const editarEnlaceAntenaSchema = z.object({
+  ...camposEnlaceAntena,
+  // Reconexão pelo canvas (arrastar a ponta): troca o nó de origem/destino.
+  origem_node_id: idPositivo.optional(),
+  destino_node_id: idPositivo.optional(),
+}).refine((valor) => Object.keys(valor).length > 0, 'Informe algo para alterar.');
 
 export const viewportAntenaSchema = z.object({
   pos_x: coordenadaTopologia,
   pos_y: coordenadaTopologia,
   zoom: z.coerce.number().finite().min(0.05).max(8),
+});
+
+// Config global do board de antenas (ex.: ocultar todos os rotulos de uma vez).
+export const configMapaAntenaSchema = z.object({
+  ocultar_labels: z.boolean(),
 });
 
 export const configResumoSchema = z.object({

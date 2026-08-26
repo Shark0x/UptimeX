@@ -32,6 +32,7 @@ export function AntenaMapaTV({ onSair }: { onSair: () => void }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
   const [agora, setAgora] = useState(new Date());
   const [emTelaCheia, setEmTelaCheia] = useState(false);
+  const [ocultarLabels, setOcultarLabels] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const antenaPorNodeRef = useRef<Map<string, number | null>>(new Map());
 
@@ -54,6 +55,8 @@ export function AntenaMapaTV({ onSair }: { onSair: () => void }) {
         id: String(e.id),
         source: String(e.origem_node_id),
         target: String(e.destino_node_id),
+        sourceHandle: e.origem_lado && e.origem_lado !== 'auto' ? e.origem_lado : undefined,
+        targetHandle: e.destino_lado && e.destino_lado !== 'auto' ? e.destino_lado : undefined,
         type: 'antena',
         label: e.label || undefined,
         selectable: false,
@@ -67,12 +70,17 @@ export function AntenaMapaTV({ onSair }: { onSair: () => void }) {
           espessura: e.espessura,
           estilo: e.estilo,
           animado: e.animado,
+          origem_lado: e.origem_lado,
+          destino_lado: e.destino_lado,
+          formato: e.formato,
+          mostrar_label: e.mostrar_label,
         },
       }));
 
       antenaPorNodeRef.current = new Map(flowNodes.map((n) => [n.id, n.data.antena_id ?? null]));
       setNodes(flowNodes);
       setEdges(flowEdges);
+      setOcultarLabels(!!topo.viewport?.ocultar_labels);
     } catch {
       /* mantém o último snapshot se uma atualização falhar */
     }
@@ -129,9 +137,10 @@ export function AntenaMapaTV({ onSair }: { onSair: () => void }) {
       const a = statusPorNode.get(e.source);
       const b = statusPorNode.get(e.target);
       const status = a === 'offline' || b === 'offline' ? 'offline' : a === 'degradado' || b === 'degradado' ? 'degradado' : 'online';
-      return { ...e, data: { ...e.data, status } };
+      const esconder_label = ocultarLabels || e.data?.mostrar_label === false;
+      return { ...e, data: { ...e.data, status, esconder_label } };
     });
-  }, [edges, antenas]);
+  }, [edges, antenas, ocultarLabels]);
 
   const resumo = useMemo(() => {
     let online = 0, offline = 0, degradadas = 0;

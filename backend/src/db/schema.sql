@@ -395,14 +395,55 @@ PREPARE stmtAntiAnim FROM @sqlAntiAnim;
 EXECUTE stmtAntiAnim;
 DEALLOCATE PREPARE stmtAntiAnim;
 
+-- Lado (handle) de cada ponta: 'auto'/NULL = lado mais proximo pela geometria;
+-- 'topo'/'base'/'esq'/'dir' fixam a borda. Traco 'formato' ('reta'|'curva'|'raio')
+-- e visibilidade do rotulo por enlace. NULL preserva enlaces antigos.
+SET @colAntiOrigLado := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'antenas_enlaces' AND column_name = 'origem_lado');
+SET @sqlAntiOrigLado := IF(@colAntiOrigLado = 0, 'ALTER TABLE antenas_enlaces ADD COLUMN origem_lado VARCHAR(10) NULL DEFAULT NULL', 'SELECT 1');
+PREPARE stmtAntiOrigLado FROM @sqlAntiOrigLado;
+EXECUTE stmtAntiOrigLado;
+DEALLOCATE PREPARE stmtAntiOrigLado;
+
+SET @colAntiDestLado := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'antenas_enlaces' AND column_name = 'destino_lado');
+SET @sqlAntiDestLado := IF(@colAntiDestLado = 0, 'ALTER TABLE antenas_enlaces ADD COLUMN destino_lado VARCHAR(10) NULL DEFAULT NULL', 'SELECT 1');
+PREPARE stmtAntiDestLado FROM @sqlAntiDestLado;
+EXECUTE stmtAntiDestLado;
+DEALLOCATE PREPARE stmtAntiDestLado;
+
+SET @colAntiFormato := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'antenas_enlaces' AND column_name = 'formato');
+SET @sqlAntiFormato := IF(@colAntiFormato = 0, 'ALTER TABLE antenas_enlaces ADD COLUMN formato VARCHAR(20) NULL DEFAULT NULL', 'SELECT 1');
+PREPARE stmtAntiFormato FROM @sqlAntiFormato;
+EXECUTE stmtAntiFormato;
+DEALLOCATE PREPARE stmtAntiFormato;
+
+SET @colAntiMostrarLabel := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'antenas_enlaces' AND column_name = 'mostrar_label');
+SET @sqlAntiMostrarLabel := IF(@colAntiMostrarLabel = 0, 'ALTER TABLE antenas_enlaces ADD COLUMN mostrar_label TINYINT(1) NOT NULL DEFAULT 1', 'SELECT 1');
+PREPARE stmtAntiMostrarLabel FROM @sqlAntiMostrarLabel;
+EXECUTE stmtAntiMostrarLabel;
+DEALLOCATE PREPARE stmtAntiMostrarLabel;
+
 -- Board único (não é por empresa): enquadramento salvo do mapa de antenas,
 -- pensado pra ficar aberto numa tela/TV do NOC observando tudo junto.
 CREATE TABLE IF NOT EXISTS antenas_viewport (
   id INT PRIMARY KEY DEFAULT 1,
   pos_x FLOAT NOT NULL DEFAULT 0,
   pos_y FLOAT NOT NULL DEFAULT 0,
-  zoom FLOAT NOT NULL DEFAULT 1
+  zoom FLOAT NOT NULL DEFAULT 1,
+  -- Toggle global do board: oculta todos os rotulos das conexoes de uma vez.
+  ocultar_labels TINYINT(1) NOT NULL DEFAULT 0
 );
+
+-- Patch idempotente pra instalacoes antigas (tabela ja existia sem a coluna).
+SET @colAntiOcultarLabels := (SELECT COUNT(1) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'antenas_viewport' AND column_name = 'ocultar_labels');
+SET @sqlAntiOcultarLabels := IF(@colAntiOcultarLabels = 0, 'ALTER TABLE antenas_viewport ADD COLUMN ocultar_labels TINYINT(1) NOT NULL DEFAULT 0', 'SELECT 1');
+PREPARE stmtAntiOcultarLabels FROM @sqlAntiOcultarLabels;
+EXECUTE stmtAntiOcultarLabels;
+DEALLOCATE PREPARE stmtAntiOcultarLabels;
 
 CREATE TABLE IF NOT EXISTS antenas_metricas (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

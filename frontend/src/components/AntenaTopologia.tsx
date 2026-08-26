@@ -13,12 +13,14 @@ import ReactFlow, {
   NodeChange,
   Viewport,
   ReactFlowInstance,
+  reconnectEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
   AntenaWireless,
   AntenaEdge as EdgeType,
   AntenaNode as NodeType,
+  LadoEnlace,
   antenasApi,
 } from '../apiAntenas';
 import { AntenaNode } from './AntenaNode';
@@ -56,6 +58,7 @@ export function AntenaTopologia({
   const [carregando, setCarregando] = useState(true);
   const [executandoPingGeral, setExecutandoPingGeral] = useState(false);
   const [filtroFabricante, setFiltroFabricante] = useState<string>('todos');
+  const [ocultarLabels, setOcultarLabels] = useState(false);
   const [nodeModalAberto, setNodeModalAberto] = useState(false);
   const [nodeEditando, setNodeEditando] = useState<NodeType | null>(null);
   const instanciaRef = useRef<ReactFlowInstance | null>(null);
@@ -104,6 +107,10 @@ export function AntenaTopologia({
         id: String(e.id),
         source: String(e.origem_node_id),
         target: String(e.destino_node_id),
+        // Lado explícito vira o handle correspondente; 'auto'/nulo deixa o AntenaEdge
+        // calcular o ponto de ancoragem pela geometria (floating).
+        sourceHandle: e.origem_lado && e.origem_lado !== 'auto' ? e.origem_lado : undefined,
+        targetHandle: e.destino_lado && e.destino_lado !== 'auto' ? e.destino_lado : undefined,
         type: 'antena',
         label: e.label || undefined,
         data: {
@@ -116,12 +123,17 @@ export function AntenaTopologia({
           espessura: e.espessura,
           estilo: e.estilo,
           animado: e.animado,
+          origem_lado: e.origem_lado,
+          destino_lado: e.destino_lado,
+          formato: e.formato,
+          mostrar_label: e.mostrar_label,
         },
       }));
 
       antenaPorNodeRef.current = new Map(flowNodes.map((n) => [n.id, n.data.antena_id ?? null]));
       setNodes(flowNodes);
       setEdges(flowEdges);
+      setOcultarLabels(!!data.viewport?.ocultar_labels);
 
       if (data.viewport && instanciaRef.current) {
         instanciaRef.current.setViewport({
@@ -213,6 +225,10 @@ export function AntenaTopologia({
         espessura: edgeAtual.data?.espessura ?? null,
         estilo: edgeAtual.data?.estilo ?? null,
         animado: edgeAtual.data?.animado ?? null,
+        origem_lado: edgeAtual.data?.origem_lado ?? null,
+        destino_lado: edgeAtual.data?.destino_lado ?? null,
+        formato: edgeAtual.data?.formato ?? null,
+        mostrar_label: edgeAtual.data?.mostrar_label ?? true,
       });
     },
     [edges, onEditarEnlace]
@@ -231,13 +247,16 @@ export function AntenaTopologia({
       const a = statusPorNode.get(e.source);
       const b = statusPorNode.get(e.target);
       const status = a === 'offline' || b === 'offline' ? 'offline' : a === 'degradado' || b === 'degradado' ? 'degradado' : 'online';
+      // Rótulo some se o toggle global estiver ligado OU se a edge estiver marcada
+      // pra não mostrar (mostrar_label === false).
+      const esconder_label = ocultarLabels || e.data?.mostrar_label === false;
 
       return {
         ...e,
-        data: { ...e.data, status, onDelete: handleExcluirEdge, onEditar: handleEditarEdgeClique },
+        data: { ...e.data, status, esconder_label, onDelete: handleExcluirEdge, onEditar: handleEditarEdgeClique },
       };
     });
-  }, [edges, antenas, handleExcluirEdge, handleEditarEdgeClique]);
+  }, [edges, antenas, ocultarLabels, handleExcluirEdge, handleEditarEdgeClique]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -272,6 +291,46 @@ export function AntenaTopologia({
       onNovoEnlace?.(Number(params.source), Number(params.target));
     },
     [onNovoEnlace]
+  );
+
+  // Arrastar a ponta da linha pra outro lado/nó (estilo The Dude): grava o lado
+  // (handle onde soltou) e, se mudou de equipamento, o novo nó de origem/destino.
+  const onReconnect = useCallback(
+    (edgeAntiga: Edge, novaConexao: Connection) => {
+      if (!novaConexao.source || !novaConexao.target) return;
+      const origem_lado = (novaConexao.sourceHandle || 'auto') as LadoEnlace;
+      const destino_lado = (novaConexao.targetHandle || 'auto') as LadoEnlace;
+
+      // Atualização otimista: reposiciona a linha na hora e casa data.lado com o handle.
+      // shouldReplaceId:false preserva o id do banco (senão o RF gera um id novo).
+      setEdges((eds) =>
+        reconnectEdge(edgeAntiga, novaConexao, eds, { shouldReplaceId: false }).map((e) =>
+          e.id === edgeAntiga.id ? { ...e, data: { ...e.data, origem_lado, destino_lado } } : e
+        )
+      );
+
+      const d = edgeAntiga.data || {};
+      antenasApi
+        .editarEdge(Number(edgeAntiga.id), {
+          origem_node_id: Number(novaConexao.source),
+          destino_node_id: Number(novaConexao.target),
+          origem_lado,
+          destino_lado,
+          // O PUT usa atribuição direta nesses campos — reenvia o visual atual pra
+          // não zerar cor/formato/espessura/estilo/fluxo ao reconectar.
+          cor: d.cor ?? null,
+          curvo: !!d.curvo,
+          formato: d.formato ?? null,
+          espessura: d.espessura ?? null,
+          estilo: d.estilo ?? null,
+          animado: d.animado ?? null,
+        })
+        .catch((err: any) => {
+          toast.erro(err?.message || 'Não foi possível reconectar o enlace');
+          carregar();
+        });
+    },
+    [setEdges, carregar, toast]
   );
 
   const onNodesDelete = useCallback((deletados: Node[]) => {
@@ -380,6 +439,17 @@ export function AntenaTopologia({
     toast.sucesso('Layout auto-organizado por hierarquia wireless!');
   }
 
+  const handleAlternarLabels = useCallback(async () => {
+    const novo = !ocultarLabels;
+    setOcultarLabels(novo); // otimista: a UI responde na hora
+    try {
+      await antenasApi.salvarConfigMapa(novo);
+    } catch (err: any) {
+      setOcultarLabels(!novo); // reverte se o backend recusar
+      toast.erro(err.message || 'Não foi possível salvar a preferência de rótulos');
+    }
+  }, [ocultarLabels, toast]);
+
   const nodesExibidos = useMemo(() => {
     if (filtroFabricante === 'todos') return nodes;
 
@@ -432,6 +502,33 @@ export function AntenaTopologia({
 
         {/* Filtros e Controles de Visualização */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleAlternarLabels}
+            className={`btn-ghost text-xs !py-1.5 !px-2.5 flex items-center gap-1.5 border transition-colors ${
+              ocultarLabels
+                ? 'border-signal-500/40 text-signal-400 bg-signal-600/10'
+                : 'border-white/10 text-slate-300'
+            }`}
+            title={ocultarLabels ? 'Mostrar os nomes/métricas sobre as linhas' : 'Ocultar todos os rótulos das conexões (topologia limpa)'}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              {ocultarLabels ? (
+                <>
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </>
+              ) : (
+                <>
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </>
+              )}
+            </svg>
+            <span>{ocultarLabels ? 'Mostrar rótulos' : 'Ocultar rótulos'}</span>
+          </button>
+
           <span className="text-[10px] font-mono uppercase text-muted">Filtrar:</span>
           <select
             value={filtroFabricante}
@@ -471,6 +568,8 @@ export function AntenaTopologia({
             onNodeClick={onNodeClick}
             onNodeDoubleClick={onNodeDoubleClick}
             onConnect={onConnect}
+            onReconnect={onReconnect}
+            reconnectRadius={18}
             connectionMode={ConnectionMode.Loose}
             onMoveEnd={aoMoverCamera}
             onInit={(inst) => {

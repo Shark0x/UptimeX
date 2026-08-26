@@ -11,6 +11,7 @@ import { registrarAuditoria } from '../services/auditService';
 import { authMiddleware, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import {
+  configMapaAntenaSchema,
   criarAntenaSchema,
   criarEnlaceAntenaSchema,
   criarNodeAntenaSchema,
@@ -297,7 +298,7 @@ export function criarAntenasRouter(io: SocketServer) {
       );
 
       const [edges]: any = await pool.query(
-        `SELECT id, origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado
+        `SELECT id, origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label
         FROM antenas_enlaces
         ORDER BY id ASC`
       );
@@ -305,13 +306,13 @@ export function criarAntenasRouter(io: SocketServer) {
       // LIMIT 1 também lê instalações anteriores, nas quais o viewport ainda
       // possuía empresa_id em vez do id fixo do board global.
       const [vp]: any = await pool.query(
-        `SELECT pos_x, pos_y, zoom FROM antenas_viewport LIMIT 1`
+        `SELECT pos_x, pos_y, zoom, ocultar_labels FROM antenas_viewport LIMIT 1`
       );
 
       res.json({
         nodes,
         edges,
-        viewport: vp[0] || { pos_x: 0, pos_y: 0, zoom: 1 },
+        viewport: vp[0] || { pos_x: 0, pos_y: 0, zoom: 1, ocultar_labels: false },
       });
     } catch {
       res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
@@ -389,6 +390,10 @@ export function criarAntenasRouter(io: SocketServer) {
       espessura = null,
       estilo = null,
       animado = null,
+      origem_lado = null,
+      destino_lado = null,
+      formato = null,
+      mostrar_label = true,
     } = req.body;
 
     if (!origem_node_id || !destino_node_id) {
@@ -396,15 +401,16 @@ export function criarAntenasRouter(io: SocketServer) {
     }
 
     const animadoVal = animado === null || animado === undefined ? null : !!animado;
+    const mostrarLabelVal = mostrar_label === undefined || mostrar_label === null ? true : !!mostrar_label;
     try {
       const [result]: any = await pool.query(
         `INSERT INTO antenas_enlaces
-         (origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id`,
-        [origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, !!curvo, espessura, estilo, animadoVal]
+        [origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, !!curvo, espessura, estilo, animadoVal, origem_lado, destino_lado, formato, mostrarLabelVal]
       );
-      res.status(201).json({ id: Number(result[0].id), origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo: !!curvo, espessura, estilo, animado: animadoVal });
+      res.status(201).json({ id: Number(result[0].id), origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo: !!curvo, espessura, estilo, animado: animadoVal, origem_lado, destino_lado, formato, mostrar_label: mostrarLabelVal });
     } catch {
       res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
     }
@@ -413,12 +419,35 @@ export function criarAntenasRouter(io: SocketServer) {
   // Editar enlace (nome, tipo, cor, reta/curva, espessura, estilo, fluxo, frequência, distância, capacidade)
   router.put('/topologia/edges/:id', requireRole('admin'), validateBody(editarEnlaceAntenaSchema), async (req, res) => {
     const id = Number(req.params.id);
-    const { tipo_enlace, label, cor, curvo, frequencia, distancia_km, capacidade_mbps, espessura, estilo, animado } = req.body;
+    const { tipo_enlace, label, cor, curvo, frequencia, distancia_km, capacidade_mbps, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label, origem_node_id, destino_node_id } = req.body;
     const animadoVal = animado === undefined || animado === null ? null : !!animado;
+    const mostrarLabelVal = mostrar_label === undefined || mostrar_label === null ? null : !!mostrar_label;
     try {
+      // Reconexão pelo canvas (arrastar a ponta): valida os novos nós antes de trocar.
+      if (origem_node_id !== undefined || destino_node_id !== undefined) {
+        const [atual]: any = await pool.query(
+          `SELECT origem_node_id, destino_node_id FROM antenas_enlaces WHERE id = ?`,
+          [id]
+        );
+        if (!atual.length) return res.status(404).json({ erro: 'Enlace não encontrado' });
+        const novoOrig = Number(origem_node_id ?? atual[0].origem_node_id);
+        const novoDest = Number(destino_node_id ?? atual[0].destino_node_id);
+        if (novoOrig === novoDest) {
+          return res.status(400).json({ erro: 'Origem e destino devem ser diferentes.' });
+        }
+        const [nodes]: any = await pool.query(
+          `SELECT id FROM antenas_nodes WHERE id IN (?, ?)`,
+          [novoOrig, novoDest]
+        );
+        if (nodes.length < 2) {
+          return res.status(404).json({ erro: 'Nó de origem ou destino não existe.' });
+        }
+      }
       await pool.query(
         `UPDATE antenas_enlaces
-         SET tipo_enlace = COALESCE(?, tipo_enlace),
+         SET origem_node_id = COALESCE(?, origem_node_id),
+             destino_node_id = COALESCE(?, destino_node_id),
+             tipo_enlace = COALESCE(?, tipo_enlace),
              label = COALESCE(?, label),
              cor = ?,
              curvo = COALESCE(?, curvo),
@@ -427,9 +456,13 @@ export function criarAntenasRouter(io: SocketServer) {
              capacidade_mbps = COALESCE(?, capacidade_mbps),
              espessura = ?,
              estilo = ?,
-             animado = ?
+             animado = ?,
+             origem_lado = ?,
+             destino_lado = ?,
+             formato = ?,
+             mostrar_label = COALESCE(?, mostrar_label)
          WHERE id = ?`,
-        [tipo_enlace || null, label || null, cor ?? null, curvo === undefined ? null : !!curvo, frequencia || null, distancia_km ?? null, capacidade_mbps ?? null, espessura ?? null, estilo ?? null, animadoVal, id]
+        [origem_node_id ?? null, destino_node_id ?? null, tipo_enlace || null, label || null, cor ?? null, curvo === undefined ? null : !!curvo, frequencia || null, distancia_km ?? null, capacidade_mbps ?? null, espessura ?? null, estilo ?? null, animadoVal, origem_lado ?? null, destino_lado ?? null, formato ?? null, mostrarLabelVal, id]
       );
       const [rows]: any = await pool.query(`SELECT * FROM antenas_enlaces WHERE id = ?`, [id]);
       res.json(rows[0] || { ok: true, id });
@@ -461,6 +494,23 @@ export function criarAntenasRouter(io: SocketServer) {
         [pos_x, pos_y, zoom]
       );
       res.json({ ok: true });
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // Config global do board (ex.: ocultar todos os rotulos das conexoes de uma vez).
+  // Fica na mesma linha unica (id = 1) do viewport pra ser compartilhada entre telas.
+  router.put('/topologia/config', requireRole('admin'), validateBody(configMapaAntenaSchema), async (req, res) => {
+    const ocultarLabels = !!req.body.ocultar_labels;
+    try {
+      await pool.query(
+        `INSERT INTO antenas_viewport (id, ocultar_labels)
+         VALUES (1, ?)
+         ON CONFLICT (id) DO UPDATE SET ocultar_labels = EXCLUDED.ocultar_labels`,
+        [ocultarLabels]
+      );
+      res.json({ ok: true, ocultar_labels: ocultarLabels });
     } catch {
       res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
     }

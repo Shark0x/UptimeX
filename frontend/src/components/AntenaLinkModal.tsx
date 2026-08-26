@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AntenaEdge, AntenaNode, EstiloEnlace, TipoEnlace } from '../apiAntenas';
+import { AntenaEdge, AntenaNode, EstiloEnlace, FormatoEnlace, LadoEnlace, TipoEnlace } from '../apiAntenas';
 import { PALETA_CORES_ENLACE } from './AntenaIcons';
 import { useToast } from './Toast';
 
@@ -31,6 +31,22 @@ const FLUXOS: { rotulo: string; valor: boolean | null }[] = [
   { rotulo: 'Desligado', valor: false },
 ];
 
+// Traçado da linha. "Raio" = zigue-zague pra sinalizar link wireless (ref. The Dude).
+const FORMATOS: { rotulo: string; valor: FormatoEnlace }[] = [
+  { rotulo: 'Reta', valor: 'reta' },
+  { rotulo: 'Curva', valor: 'curva' },
+  { rotulo: 'Raio', valor: 'raio' },
+];
+
+// Lado (borda) de ancoragem de cada ponta. "Auto" escolhe o mais próximo.
+const LADOS: { rotulo: string; valor: LadoEnlace }[] = [
+  { rotulo: 'Auto', valor: 'auto' },
+  { rotulo: 'Topo', valor: 'topo' },
+  { rotulo: 'Base', valor: 'base' },
+  { rotulo: 'Esquerda', valor: 'esq' },
+  { rotulo: 'Direita', valor: 'dir' },
+];
+
 export interface EnlacePayload {
   origem_node_id: number;
   destino_node_id: number;
@@ -44,6 +60,10 @@ export interface EnlacePayload {
   espessura?: number | null;
   estilo?: EstiloEnlace | null;
   animado?: boolean | null;
+  origem_lado?: LadoEnlace | null;
+  destino_lado?: LadoEnlace | null;
+  formato?: FormatoEnlace | null;
+  mostrar_label?: boolean;
 }
 
 export function AntenaLinkModal({
@@ -63,7 +83,10 @@ export function AntenaLinkModal({
   const [label, setLabel] = useState('');
   const [tipoEnlace, setTipoEnlace] = useState<TipoEnlace>('ptp_wireless');
   const [cor, setCor] = useState<string | null>(null);
-  const [curvo, setCurvo] = useState(false);
+  const [formato, setFormato] = useState<FormatoEnlace>('reta');
+  const [origemLado, setOrigemLado] = useState<LadoEnlace>('auto');
+  const [destinoLado, setDestinoLado] = useState<LadoEnlace>('auto');
+  const [mostrarLabel, setMostrarLabel] = useState(true);
   const [espessura, setEspessura] = useState<number | null>(null);
   const [estilo, setEstilo] = useState<EstiloEnlace | null>(null);
   const [animado, setAnimado] = useState<boolean | null>(null);
@@ -81,7 +104,10 @@ export function AntenaLinkModal({
       setLabel(enlaceEditando.label || '');
       setTipoEnlace(enlaceEditando.tipo_enlace);
       setCor(enlaceEditando.cor || null);
-      setCurvo(!!enlaceEditando.curvo);
+      setFormato(enlaceEditando.formato ?? (enlaceEditando.curvo ? 'curva' : 'reta'));
+      setOrigemLado(enlaceEditando.origem_lado ?? 'auto');
+      setDestinoLado(enlaceEditando.destino_lado ?? 'auto');
+      setMostrarLabel(enlaceEditando.mostrar_label ?? true);
       setEspessura(enlaceEditando.espessura ?? null);
       setEstilo(enlaceEditando.estilo ?? null);
       setAnimado(enlaceEditando.animado ?? null);
@@ -94,7 +120,10 @@ export function AntenaLinkModal({
       setLabel('');
       setTipoEnlace('ptp_wireless');
       setCor(null);
-      setCurvo(false);
+      setFormato('reta');
+      setOrigemLado('auto');
+      setDestinoLado('auto');
+      setMostrarLabel(true);
       setEspessura(null);
       setEstilo(null);
       setAnimado(null);
@@ -123,7 +152,13 @@ export function AntenaLinkModal({
         tipo_enlace: tipoEnlace,
         label: label.trim() || undefined,
         cor,
-        curvo,
+        // curvo continua sendo enviado (derivado) pra compatibilidade; formato é a
+        // fonte de verdade do traçado (reta/curva/raio).
+        curvo: formato === 'curva',
+        formato,
+        origem_lado: origemLado,
+        destino_lado: destinoLado,
+        mostrar_label: mostrarLabel,
         espessura,
         estilo,
         animado,
@@ -232,8 +267,17 @@ export function AntenaLinkModal({
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">Formato da linha</label>
               <div className="inline-flex rounded-lg border border-white/10 overflow-hidden">
-                <button type="button" onClick={() => setCurvo(false)} className={`px-3 py-1.5 text-xs font-mono ${!curvo ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}>Reta</button>
-                <button type="button" onClick={() => setCurvo(true)} className={`px-3 py-1.5 text-xs font-mono border-l border-white/10 ${curvo ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}>Curva</button>
+                {FORMATOS.map((op, i) => (
+                  <button
+                    type="button"
+                    key={op.valor}
+                    onClick={() => setFormato(op.valor)}
+                    title={op.valor === 'raio' ? 'Zigue-zague pra links wireless (rádio/PtP/PtMP)' : undefined}
+                    className={`px-3 py-1.5 text-xs font-mono ${i > 0 ? 'border-l border-white/10' : ''} ${formato === op.valor ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}
+                  >
+                    {op.rotulo}
+                  </button>
+                ))}
               </div>
             </div>
             <div>
@@ -285,6 +329,31 @@ export function AntenaLinkModal({
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">Saída (origem)</label>
+              <select value={origemLado} onChange={(e) => setOrigemLado(e.target.value as LadoEnlace)} className="input text-xs" title="Borda do nó de origem de onde a linha sai">
+                {LADOS.map((l) => <option key={l.valor} value={l.valor}>{l.rotulo}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">Chegada (destino)</label>
+              <select value={destinoLado} onChange={(e) => setDestinoLado(e.target.value as LadoEnlace)} className="input text-xs" title="Borda do nó de destino onde a linha chega">
+                {LADOS.map((l) => <option key={l.valor} value={l.valor}>{l.rotulo}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">Rótulo na linha</label>
+              <div className="inline-flex rounded-lg border border-white/10 overflow-hidden">
+                <button type="button" onClick={() => setMostrarLabel(true)} className={`px-3 py-1.5 text-xs font-mono ${mostrarLabel ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}>Mostrar</button>
+                <button type="button" onClick={() => setMostrarLabel(false)} className={`px-3 py-1.5 text-xs font-mono border-l border-white/10 ${!mostrarLabel ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}>Ocultar</button>
+              </div>
+            </div>
+          </div>
+          <p className="-mt-2 text-[10px] font-mono text-muted">
+            "Auto" ancora no lado mais próximo do outro equipamento. Fixe topo/base/esquerda/direita quando quiser controlar o desenho.
+          </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>

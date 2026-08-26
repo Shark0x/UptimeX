@@ -221,6 +221,14 @@ CREATE TABLE antenas_enlaces (
   capacidade_mbps integer CHECK (capacidade_mbps IS NULL OR capacidade_mbps >= 0),
   cor varchar(20), curvo boolean NOT NULL DEFAULT false,
   espessura real, estilo varchar(20), animado boolean,
+  -- Lado (handle) de cada ponta no canvas: 'auto' (ou NULL) escolhe o lado mais
+  -- proximo pela geometria; 'topo'/'base'/'esq'/'dir' fixam a borda.
+  origem_lado varchar(10), destino_lado varchar(10),
+  -- Tracado da linha: 'reta' | 'curva' | 'raio' (zigue-zague wireless, estilo Dude).
+  -- NULL preserva enlaces antigos (derivado de curvo).
+  formato varchar(20),
+  -- Rotulo visivel sobre a linha (nome/metricas). false = so o traco.
+  mostrar_label boolean NOT NULL DEFAULT true,
   criado_em timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (origem_node_id <> destino_node_id)
 );
@@ -229,7 +237,9 @@ CREATE TABLE antenas_enlaces (
 CREATE TABLE antenas_viewport (
   id integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   pos_x real NOT NULL DEFAULT 0, pos_y real NOT NULL DEFAULT 0,
-  zoom real NOT NULL DEFAULT 1 CHECK (zoom > 0)
+  zoom real NOT NULL DEFAULT 1 CHECK (zoom > 0),
+  -- Toggle global do board: oculta todos os rotulos das conexoes de uma vez.
+  ocultar_labels boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE antenas_metricas (

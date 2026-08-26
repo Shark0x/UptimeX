@@ -73,14 +73,22 @@ export interface AntenaEdge {
   espessura: number | null;
   estilo: EstiloEnlace | null;
   animado: boolean | null;
+  origem_lado: LadoEnlace | null;
+  destino_lado: LadoEnlace | null;
+  formato: FormatoEnlace | null;
+  mostrar_label: boolean;
 }
 
 export type EstiloEnlace = 'solida' | 'tracejada' | 'pontilhada';
+// Lado (handle) de ancoragem de cada ponta. 'auto' escolhe o mais proximo.
+export type LadoEnlace = 'auto' | 'topo' | 'base' | 'esq' | 'dir';
+// Tracado da linha: reta, curva ou zigue-zague "raio" (link wireless, estilo Dude).
+export type FormatoEnlace = 'reta' | 'curva' | 'raio';
 
 export interface AntenaTopologyData {
   nodes: AntenaNode[];
   edges: AntenaEdge[];
-  viewport: { pos_x: number; pos_y: number; zoom: number };
+  viewport: { pos_x: number; pos_y: number; zoom: number; ocultar_labels?: boolean };
 }
 
 export interface AntenaMetrica {
@@ -180,6 +188,10 @@ export const antenasApi = {
     espessura?: number | null;
     estilo?: EstiloEnlace | null;
     animado?: boolean | null;
+    origem_lado?: LadoEnlace | null;
+    destino_lado?: LadoEnlace | null;
+    formato?: FormatoEnlace | null;
+    mostrar_label?: boolean;
   }): Promise<AntenaEdge> => req<AntenaEdge>('/topologia/edges', { method: 'POST', body: JSON.stringify(payload) }),
   editarEdge: (id: number, payload: {
     tipo_enlace?: TipoEnlace;
@@ -192,11 +204,21 @@ export const antenasApi = {
     espessura?: number | null;
     estilo?: EstiloEnlace | null;
     animado?: boolean | null;
+    origem_lado?: LadoEnlace | null;
+    destino_lado?: LadoEnlace | null;
+    formato?: FormatoEnlace | null;
+    mostrar_label?: boolean;
+    // Reconexão pelo canvas (arrastar a ponta para outro nó).
+    origem_node_id?: number;
+    destino_node_id?: number;
   }): Promise<AntenaEdge> => req<AntenaEdge>(`/topologia/edges/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   removerEdge: (id: number) => req<void>(`/topologia/edges/${id}`, { method: 'DELETE' }),
 
   salvarViewport: (pos_x: number, pos_y: number, zoom: number) =>
     req('/topologia/viewport', { method: 'PUT', body: JSON.stringify({ pos_x, pos_y, zoom }) }),
+  // Config global do board (compartilhada entre telas): ocultar todos os rotulos.
+  salvarConfigMapa: (ocultar_labels: boolean): Promise<{ ok: boolean; ocultar_labels: boolean }> =>
+    req('/topologia/config', { method: 'PUT', body: JSON.stringify({ ocultar_labels }) }),
 };
 
 export { socket };
