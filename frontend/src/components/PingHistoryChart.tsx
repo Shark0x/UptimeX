@@ -62,7 +62,7 @@ function timestampLocal(data: Date) {
 function TooltipHistorico({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-white/10 bg-[#081318]/95 px-3 py-2.5 shadow-2xl backdrop-blur-xl">
+    <div className="rounded-xl border border-white/10 bg-deep-900/95 px-3 py-2.5 shadow-2xl backdrop-blur-xl">
       <p className="mb-1.5 font-mono text-[10px] text-muted">{formatarDataCompleta(String(label))}</p>
       {payload.map((item: any) => (
         <p key={item.dataKey} className="flex items-center justify-between gap-5 font-mono text-[11px]">
@@ -189,7 +189,7 @@ export function PingHistoryChart({
   const alturaQualidade = compact ? 142 : 190;
 
   return (
-    <section className={`w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-teal-300/[0.10] bg-gradient-to-br from-[#0B171C]/95 via-[#081217]/95 to-deep-950 shadow-glass ${compact ? 'p-3' : 'p-4 sm:p-5'}`}>
+    <section className={`w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-deep-900/95 via-deep-900/90 to-deep-950 shadow-glass ${compact ? 'p-3' : 'p-4 sm:p-5'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow mb-1">Telemetria temporal</p>
@@ -198,16 +198,16 @@ export function PingHistoryChart({
             {range === '24h' ? 'amostras raw' : range === '7d' || range === '30d' ? 'rollup horário' : 'rollup diário'} · 1 ponto/{granularidade}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-xl border border-white/[0.08] bg-black/20 p-1" aria-label="Período do histórico">
+        <div className="flex flex-wrap gap-1 rounded-xl border border-white/[0.08] bg-deep-950/40 p-1" aria-label="Período do histórico">
           {PERIODOS.map((periodo) => (
             <button
               key={periodo.value}
               type="button"
               onClick={() => setRange(periodo.value)}
               aria-pressed={range === periodo.value}
-              className={`min-h-9 min-w-[44px] rounded-lg px-2.5 font-mono text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-teal-400/60 ${
+              className={`min-h-9 min-w-[44px] rounded-lg px-2.5 font-mono text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-signal-500/60 ${
                 range === periodo.value
-                  ? 'bg-teal-300/15 text-teal-200 shadow-[inset_0_0_0_1px_rgba(94,234,212,0.22)]'
+                  ? 'bg-signal-500/15 text-signal-400 shadow-[inset_0_0_0_1px_rgba(255,43,58,0.28)]'
                   : 'text-muted hover:bg-white/[0.05] hover:text-slate-200'
               }`}
             >
@@ -218,7 +218,7 @@ export function PingHistoryChart({
       </div>
 
       <div className={`mt-4 grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
-        <Resumo label="Latência média" valor={resumo.latencia} unidade="ms" tom={(resumo.latencia ?? 0) >= LIMIAR_LATENCIA_MS ? 'text-warn' : 'text-teal-200'} />
+        <Resumo label="Latência média" valor={resumo.latencia} unidade="ms" tom={(resumo.latencia ?? 0) >= LIMIAR_LATENCIA_MS ? 'text-warn' : 'text-teal-500'} />
         <Resumo label="Uptime" valor={resumo.uptime} unidade="%" tom={(resumo.uptime ?? 100) < 99 ? 'text-warn' : 'text-online'} />
         <Resumo label="Perda média" valor={resumo.perda} unidade="%" tom={(resumo.perda ?? 0) >= LIMIAR_PERDA_PCT ? 'text-warn' : 'text-slate-100'} />
         <Resumo label="Tempo degradado" valor={resumo.degradado} unidade="%" tom={(resumo.degradado ?? 0) > 0 ? 'text-warn' : 'text-slate-100'} />
@@ -242,7 +242,7 @@ export function PingHistoryChart({
         <>
           <div className="mt-4">
             <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted">Latência · média, mínimo e máximo</p>
-            <div className="rounded-xl border border-white/[0.06] bg-black/15 px-1 pt-2" style={{ height: alturaLatencia }}>
+            <div className="rounded-xl border border-white/[0.06] bg-deep-950/30 px-1 pt-2" style={{ height: alturaLatencia }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={dados} margin={{ top: 4, right: 10, bottom: 4, left: compact ? -18 : -8 }}>
                   <defs>
@@ -266,7 +266,7 @@ export function PingHistoryChart({
 
           <div className="mt-3">
             <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted">Qualidade · uptime e perda de pacotes</p>
-            <div className="rounded-xl border border-white/[0.06] bg-black/15 px-1 pt-2" style={{ height: alturaQualidade }}>
+            <div className="rounded-xl border border-white/[0.06] bg-deep-950/30 px-1 pt-2" style={{ height: alturaQualidade }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={dados} margin={{ top: 4, right: 10, bottom: 4, left: compact ? -18 : -8 }}>
                   <CartesianGrid stroke="rgba(148,163,184,0.08)" vertical={false} />
@@ -286,7 +286,7 @@ export function PingHistoryChart({
               <summary className="cursor-pointer px-3 py-2 font-mono text-[10px] text-muted hover:text-slate-200">Ver dados do gráfico ({dados.length} pontos)</summary>
               <div className="max-h-64 overflow-auto border-t border-white/[0.06]">
                 <table className="w-full min-w-[620px] text-left font-mono text-[10px]">
-                  <thead className="sticky top-0 bg-[#0A151A] text-muted">
+                  <thead className="sticky top-0 bg-deep-900 text-muted">
                     <tr><th className="px-3 py-2">Horário</th><th>Média</th><th>Mín.</th><th>Máx.</th><th>Perda</th><th>Uptime</th></tr>
                   </thead>
                   <tbody className="text-slate-300">
