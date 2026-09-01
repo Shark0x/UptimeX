@@ -70,10 +70,16 @@ function anchorFlutuante(reto: RetanguloNo, alvo: RetanguloNo): { x: number; y: 
   return { x, y, position };
 }
 
-// --- Traçado "raio" (zigue-zague wireless, referência The Dude) --------------
-// Constantes fáceis de ajustar quando chegar o print de referência exato.
-const RAIO_AMPLITUDE = 7; // deslocamento perpendicular de cada dente (px)
-const RAIO_SEG_PX = 20; // comprimento aproximado de cada dente ao longo da linha
+// --- Traçado "raio" (UM relâmpago ligando as pontas, estilo The Dude) ---------
+// Não é serrilhado uniforme: são poucos vértices formando a silhueta de um raio,
+// saindo de um equipamento e chegando no outro. A amplitude cresce com a distância
+// (com teto) pra o relâmpago ficar proporcional em enlaces curtos e longos.
+const RAIO_KINKS: Array<[number, number]> = [
+  // [posição ao longo da linha (0..1), deslocamento lateral (fator da amplitude)]
+  [0.4, -1.0],
+  [0.48, 0.55],
+  [0.66, -0.4],
+];
 
 function caminhoRaio(
   x1: number,
@@ -86,17 +92,15 @@ function caminhoRaio(
   const dist = Math.hypot(dx, dy) || 1;
   const px = -dy / dist; // perpendicular unitário
   const py = dx / dist;
-  let n = Math.max(4, Math.round(dist / RAIO_SEG_PX));
-  if (n % 2 !== 0) n += 1; // par: sai e chega alinhado ao eixo da linha
+  const amp = Math.min(18, Math.max(8, dist * 0.13));
   let d = `M ${x1} ${y1}`;
-  for (let i = 1; i < n; i++) {
-    const t = i / n;
-    const bx = x1 + dx * t;
-    const by = y1 + dy * t;
-    const lado = i % 2 === 1 ? 1 : -1;
-    d += ` L ${bx + px * RAIO_AMPLITUDE * lado} ${by + py * RAIO_AMPLITUDE * lado}`;
+  for (const [t, fator] of RAIO_KINKS) {
+    const bx = x1 + dx * t + px * amp * fator;
+    const by = y1 + dy * t + py * amp * fator;
+    d += ` L ${bx.toFixed(1)} ${by.toFixed(1)}`;
   }
   d += ` L ${x2} ${y2}`;
+  // Rótulo no meio geométrico (não no vértice do raio), pra ficar centrado na linha.
   return { path: d, labelX: (x1 + x2) / 2, labelY: (y1 + y2) / 2 };
 }
 
@@ -185,43 +189,28 @@ export const AntenaEdge = memo(function AntenaEdge({
   }
 
   const tipo = data?.tipo_enlace || 'ptp_wireless';
-  const status = data?.status || 'online';
+  const ehRaio = formato === 'raio';
 
-  let corLinha = '#2FD771'; // Verde padrão
-  let strokeDash = '4 4';
-  let animada = true;
+  // A SAÚDE (online/degradado/queda) aparece no OBJETO (nó) — vermelho e piscando.
+  // O enlace NÃO carrega status: ele só representa o TIPO de ligação. A cor vem da
+  // escolha do usuário ou de um padrão por tipo; nada de tracejado nem pisca aqui.
+  let corLinha: string;
+  if (data?.cor) corLinha = data.cor;
+  else if (ehRaio) corLinha = '#EEF3F7'; // relâmpago wireless: claro no tema escuro
+  else if (tipo === 'fibra_torre') corLinha = '#00E5FF';
+  else if (tipo === 'cabo_poe') corLinha = '#94A3B8';
+  else corLinha = '#EEF3F7'; // wireless genérico
 
-  if (status === 'offline') {
-    corLinha = '#FF2B3A';
-    strokeDash = '6 6';
-  } else if (status === 'degradado') {
-    corLinha = '#FFB224';
-    strokeDash = '4 4';
-  } else if (data?.cor) {
-    // Cor customizada pelo usuário — só vale quando o enlace está saudável;
-    // alerta de queda/degradação sempre tem prioridade visual.
-    corLinha = data.cor;
-    strokeDash = 'none';
-    animada = false;
-  } else if (tipo === 'fibra_torre') {
-    corLinha = '#00E5FF';
-    strokeDash = 'none';
-    animada = false;
-  } else if (tipo === 'cabo_poe') {
-    corLinha = '#94A3B8';
-    strokeDash = 'none';
-    animada = false;
-  }
-
-  // Customizações explícitas do usuário sobrepõem o comportamento automático.
-  // Estilo do traço (sólida/tracejada/pontilhada):
-  if (data?.estilo) {
-    strokeDash = data.estilo === 'solida' ? 'none' : data.estilo === 'tracejada' ? '8 6' : '2 5';
-  }
-  // Espessura da linha (px); senão o padrão fino de sempre.
-  const larguraBase = data?.espessura && data.espessura > 0 ? data.espessura : 1.8;
-  // Fluxo animado: honra a escolha do usuário; no automático, pulsa se saudável.
-  const deveAnimar = data?.animado != null ? data.animado : animada && status !== 'offline';
+  // Estilo do traço (sólida/tracejada/pontilhada): escolha do usuário pra diferenciar
+  // enlaces — vale pra QUALQUER formato, inclusive o raio (ex.: raio tracejado = backup
+  // wireless). Não tem a ver com status (isso é do nó).
+  const strokeDash =
+    data?.estilo === 'tracejada' ? '8 6' : data?.estilo === 'pontilhada' ? '2 5' : 'none';
+  // Espessura da linha (px); o raio nasce mais grosso pra ler como relâmpago.
+  const larguraBase = data?.espessura && data.espessura > 0 ? data.espessura : ehRaio ? 4.5 : 1.8;
+  // "Fluxo animado" é decorativo (escolha do usuário) e NÃO reflete status — a saúde
+  // é do nó. O raio fica sempre sólido; só linha reta/curva pode pulsar se o usuário quiser.
+  const deveAnimar = !ehRaio && !!data?.animado;
 
   const esconderLabel = !!data?.esconder_label;
 
@@ -253,10 +242,12 @@ export const AntenaEdge = memo(function AntenaEdge({
         stroke={corLinha}
         strokeWidth={(selected ? larguraBase + 0.7 : larguraBase) + 2.2}
         strokeOpacity={0.2}
+        strokeLinejoin={ehRaio ? 'miter' : 'round'}
+        strokeLinecap={ehRaio ? 'butt' : 'round'}
         className="transition-all duration-300"
       />
 
-      {/* Linha principal com traço e animação de fluxo */}
+      {/* Linha principal — no raio, relâmpago sólido de cantos vivos (miter) */}
       <path
         id={id}
         d={edgePath}
@@ -264,6 +255,8 @@ export const AntenaEdge = memo(function AntenaEdge({
         stroke={corLinha}
         strokeWidth={selected ? larguraBase + 0.7 : larguraBase}
         strokeDasharray={strokeDash}
+        strokeLinejoin={ehRaio ? 'miter' : 'round'}
+        strokeLinecap={ehRaio ? 'butt' : 'round'}
         className={`${deveAnimar ? 'animate-pulse' : ''} transition-all duration-300`}
       />
 

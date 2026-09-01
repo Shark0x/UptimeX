@@ -272,7 +272,7 @@ export function AntenaLinkModal({
                     type="button"
                     key={op.valor}
                     onClick={() => setFormato(op.valor)}
-                    title={op.valor === 'raio' ? 'Zigue-zague pra links wireless (rádio/PtP/PtMP)' : undefined}
+                    title={op.valor === 'raio' ? 'Relâmpago ⚡ pra links wireless (rádio/PtP/PtMP)' : undefined}
                     className={`px-3 py-1.5 text-xs font-mono ${i > 0 ? 'border-l border-white/10' : ''} ${formato === op.valor ? 'bg-signal-600/20 text-signal-400' : 'text-muted hover:text-slate-200'}`}
                   >
                     {op.rotulo}

@@ -92,6 +92,159 @@ export function IconRepetidora(props: P) {
   );
 }
 
+// Antena Omnidirecional (setor 360°)
+export function IconAntenaOmni(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4v12" strokeWidth={1.8} />
+      <circle cx="12" cy="3" r="1.4" fill="currentColor" />
+      <path d="M9 20l3-4 3 4M8 22h8" />
+      <path d="M7.5 8.5a6 6 0 0 1 9 0" opacity="0.75" />
+      <path d="M5 6a10 10 0 0 1 14 0" opacity="0.4" strokeDasharray="2 2" />
+    </svg>
+  );
+}
+
+// Roteador (borda / gateway)
+export function IconRoteador(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="10" width="18" height="8" rx="2" strokeWidth={1.6} />
+      <circle cx="6.5" cy="14" r="1" fill="currentColor" />
+      <path d="M11 14h4M13.5 12l2 2-2 2" strokeWidth={1.3} />
+      <path d="M12 10V6M12 6l-2.5 2.5M12 6l2.5 2.5" opacity="0.8" />
+    </svg>
+  );
+}
+
+// Switch gerenciável (portas)
+export function IconSwitch(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="2.5" y="7" width="19" height="8" rx="1.6" strokeWidth={1.6} />
+      <path d="M6 15v3M10 15v3M14 15v3M18 15v3" />
+      <path d="M6 11h9M17 11h1" opacity="0.55" />
+      <path d="M15 9l1.5 2-1.5 2" strokeWidth={1.2} opacity="0.8" />
+    </svg>
+  );
+}
+
+// Firewall (muro de tijolos)
+export function IconFirewall(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="1" strokeWidth={1.6} />
+      <path d="M3 9.7h18M3 14.3h18" />
+      <path d="M9 5v4.7M15 5v4.7M6.5 9.7v4.6M12 9.7v4.6M17.5 9.7v4.6M9 14.3V19M15 14.3V19" opacity="0.85" />
+    </svg>
+  );
+}
+
+// Servidor / NVR (unidades de rack)
+export function IconServidor(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4" y="3" width="16" height="8" rx="1.5" strokeWidth={1.6} />
+      <rect x="4" y="13" width="16" height="8" rx="1.5" strokeWidth={1.6} />
+      <circle cx="7.5" cy="7" r="1" fill="currentColor" />
+      <circle cx="7.5" cy="17" r="1" fill="currentColor" />
+      <path d="M11 7h6M11 17h6" opacity="0.6" />
+    </svg>
+  );
+}
+
+// OLT (terminal de fibra / GPON)
+export function IconOlt(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="4" width="18" height="7" rx="1.5" strokeWidth={1.6} />
+      <circle cx="6.5" cy="7.5" r="1" fill="currentColor" />
+      <path d="M10 7.5h8" opacity="0.5" />
+      <path d="M8 11c-1 4-3 5-5 6M12 11v6M16 11c1 4 3 5 5 6" opacity="0.85" />
+    </svg>
+  );
+}
+
+// ONU / ONT (terminal do cliente fibra)
+export function IconOnu(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="9" width="14" height="8" rx="2" strokeWidth={1.6} />
+      <circle cx="8.5" cy="13" r="1" fill="currentColor" />
+      <path d="M12 13h4" opacity="0.5" />
+      <path d="M12 9V6M9.6 7a4 4 0 0 1 4.8 0" opacity="0.8" />
+      <path d="M8 17v3M16 17v3" />
+    </svg>
+  );
+}
+
+// Internet / Nuvem (upstream)
+export function IconNuvem(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7 18h9.5a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1A3.8 3.8 0 0 0 7 18z" strokeWidth={1.6} />
+    </svg>
+  );
+}
+
+// CTO / Splitter óptico (distribuição)
+export function IconCto(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="9.5" width="6" height="5" rx="1" strokeWidth={1.6} />
+      <path d="M9 12h4M13 12l5-4M13 12h5M13 12l5 4" opacity="0.85" />
+      <circle cx="19" cy="8" r="1.1" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.1" fill="currentColor" />
+      <circle cx="19" cy="16" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+// Nobreak / UPS (energia)
+export function IconNobreak(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="6" y="3" width="12" height="18" rx="2" strokeWidth={1.6} />
+      <path d="M13 7l-3 5h3l-3 5" strokeWidth={1.4} />
+      <path d="M9.5 3V1.6M14.5 3V1.6" opacity="0.8" />
+    </svg>
+  );
+}
+
+// Cliente (residência / premissa)
+export function IconClienteCasa(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 11.5L12 5l8.5 6.5" strokeWidth={1.7} />
+      <path d="M6 10v9h12v-9" />
+      <path d="M10.5 19v-4.5h3V19" />
+    </svg>
+  );
+}
+
+// Access Point interno (Wi-Fi)
+export function IconAccessPoint(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <ellipse cx="12" cy="17" rx="7" ry="2.6" strokeWidth={1.6} />
+      <circle cx="12" cy="17" r="1" fill="currentColor" />
+      <path d="M8.5 12a5 5 0 0 1 7 0" opacity="0.8" />
+      <path d="M6 9a9 9 0 0 1 12 0" opacity="0.4" strokeDasharray="2 2" />
+    </svg>
+  );
+}
+
+// POP / Datacenter (prédio)
+export function IconDatacenter(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="3" width="14" height="18" rx="1" strokeWidth={1.6} />
+      <path d="M8 7h2.5M13.5 7H16M8 11h2.5M13.5 11H16M8 15h2.5M13.5 15H16" opacity="0.7" />
+      <path d="M10 21v-3h4v3" />
+    </svg>
+  );
+}
+
 // Ícones de Fabricantes (Logotipos estilizados HUD)
 export function IconUbiquiti(props: P) {
   return (
@@ -152,10 +305,23 @@ export const PALETA_CORES_ENLACE: { valor: string; nome: string }[] = [
 export const TIPOS_VISUAIS_ANTENAS = [
   { valor: 'antena_ptp', rotulo: 'PTP Parábola / Dish', Icone: IconAntenaPtp },
   { valor: 'antena_setorial', rotulo: 'Setorial PTMP (AP)', Icone: IconAntenaSetorial },
+  { valor: 'antena_omni', rotulo: 'Antena Omni 360°', Icone: IconAntenaOmni },
   { valor: 'torre', rotulo: 'Torre Telecom / Site', Icone: IconTorreTelecom },
-  { valor: 'antena_cpe', rotulo: 'CPE Cliente (Station)', Icone: IconAntenaCpe },
-  { valor: 'switch_poe', rotulo: 'Switch PoE de Torre', Icone: IconSwitchPoe },
   { valor: 'repetidora', rotulo: 'POP / Repetidora', Icone: IconRepetidora },
+  { valor: 'antena_cpe', rotulo: 'CPE Cliente (Station)', Icone: IconAntenaCpe },
+  { valor: 'cliente_casa', rotulo: 'Cliente (Casa)', Icone: IconClienteCasa },
+  { valor: 'access_point', rotulo: 'Access Point Wi-Fi', Icone: IconAccessPoint },
+  { valor: 'roteador', rotulo: 'Roteador / Borda', Icone: IconRoteador },
+  { valor: 'switch', rotulo: 'Switch', Icone: IconSwitch },
+  { valor: 'switch_poe', rotulo: 'Switch PoE de Torre', Icone: IconSwitchPoe },
+  { valor: 'firewall', rotulo: 'Firewall', Icone: IconFirewall },
+  { valor: 'servidor', rotulo: 'Servidor / NVR', Icone: IconServidor },
+  { valor: 'olt', rotulo: 'OLT (Fibra/GPON)', Icone: IconOlt },
+  { valor: 'onu', rotulo: 'ONU / ONT', Icone: IconOnu },
+  { valor: 'cto', rotulo: 'CTO / Splitter', Icone: IconCto },
+  { valor: 'nobreak', rotulo: 'Nobreak / UPS', Icone: IconNobreak },
+  { valor: 'datacenter', rotulo: 'POP / Datacenter', Icone: IconDatacenter },
+  { valor: 'nuvem', rotulo: 'Internet / Nuvem', Icone: IconNuvem },
 ];
 
 export function iconeAntenaPorTipo(tipo: string) {
