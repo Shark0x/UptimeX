@@ -24,10 +24,35 @@ RETURN public.app_is_admin() OR EXISTS (
     AND u.ativo
 );
 
+-- Staff interno da operacao: admin/operador/visualizador. Enxergam TODO o
+-- monitoramento (leitura global). O escopo por usuario_empresas fica reservado a
+-- um eventual acesso por cliente no futuro.
+CREATE FUNCTION app_is_staff() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public
+RETURN EXISTS (
+  SELECT 1 FROM public.usuarios
+  WHERE id = public.app_user_id() AND ativo
+    AND role IN ('admin', 'operador', 'visualizador')
+);
+
+-- Pode ESCREVER dados operacionais: admin ou operador. Visualizador NAO opera.
+CREATE FUNCTION app_can_operate() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public
+RETURN EXISTS (
+  SELECT 1 FROM public.usuarios
+  WHERE id = public.app_user_id() AND ativo
+    AND role IN ('admin', 'operador')
+);
+
 REVOKE ALL ON FUNCTION app_user_id() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_is_admin() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_can_access_empresa(bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app_user_id(), app_is_admin(), app_can_access_empresa(bigint)
+REVOKE ALL ON FUNCTION app_is_staff() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_can_operate() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_user_id(), app_is_admin(), app_can_access_empresa(bigint),
+  app_is_staff(), app_can_operate()
   TO uptimex_app, uptimex_worker;
 
 -- Login precisa localizar o hash antes de existir contexto RLS. Esta funcao
@@ -177,8 +202,10 @@ CREATE POLICY usuarios_admin_write ON usuarios FOR ALL TO uptimex_app
 
 ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE empresas FORCE ROW LEVEL SECURITY;
-CREATE POLICY empresas_tenant ON empresas FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(id)) WITH CHECK (app_can_access_empresa(id));
+CREATE POLICY empresas_read ON empresas FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY empresas_write ON empresas FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 CREATE POLICY empresas_worker ON empresas FOR SELECT TO uptimex_worker USING (true);
 
 ALTER TABLE usuario_empresas ENABLE ROW LEVEL SECURITY;
@@ -190,8 +217,10 @@ CREATE POLICY usuario_empresas_admin_write ON usuario_empresas FOR ALL TO uptime
 
 ALTER TABLE dispositivos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dispositivos FORCE ROW LEVEL SECURITY;
-CREATE POLICY dispositivos_tenant ON dispositivos FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(empresa_id)) WITH CHECK (app_can_access_empresa(empresa_id));
+CREATE POLICY dispositivos_read ON dispositivos FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY dispositivos_write ON dispositivos FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 CREATE POLICY dispositivos_worker ON dispositivos FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 ALTER TABLE ping_metricas ENABLE ROW LEVEL SECURITY;
@@ -213,40 +242,48 @@ CREATE POLICY status_eventos_worker ON status_eventos FOR ALL TO uptimex_worker 
 ALTER TABLE ping_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ping_log FORCE ROW LEVEL SECURITY;
 CREATE POLICY ping_log_tenant ON ping_log FOR SELECT TO uptimex_app
-  USING (app_can_access_empresa(empresa_id));
+  USING (app_is_staff());
 CREATE POLICY ping_log_worker ON ping_log FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 ALTER TABLE ping_log_hourly ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ping_log_hourly FORCE ROW LEVEL SECURITY;
 CREATE POLICY ping_log_hourly_tenant ON ping_log_hourly FOR SELECT TO uptimex_app
-  USING (app_can_access_empresa(empresa_id));
+  USING (app_is_staff());
 CREATE POLICY ping_log_hourly_worker ON ping_log_hourly FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 ALTER TABLE ping_log_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ping_log_daily FORCE ROW LEVEL SECURITY;
 CREATE POLICY ping_log_daily_tenant ON ping_log_daily FOR SELECT TO uptimex_app
-  USING (app_can_access_empresa(empresa_id));
+  USING (app_is_staff());
 CREATE POLICY ping_log_daily_worker ON ping_log_daily FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 ALTER TABLE topologia_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE topologia_nodes FORCE ROW LEVEL SECURITY;
-CREATE POLICY topologia_nodes_tenant ON topologia_nodes FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(empresa_id)) WITH CHECK (app_can_access_empresa(empresa_id));
+CREATE POLICY topologia_nodes_read ON topologia_nodes FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY topologia_nodes_write ON topologia_nodes FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE topologia_edges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE topologia_edges FORCE ROW LEVEL SECURITY;
-CREATE POLICY topologia_edges_tenant ON topologia_edges FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(empresa_id)) WITH CHECK (app_can_access_empresa(empresa_id));
+CREATE POLICY topologia_edges_read ON topologia_edges FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY topologia_edges_write ON topologia_edges FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE topologia_viewport ENABLE ROW LEVEL SECURITY;
 ALTER TABLE topologia_viewport FORCE ROW LEVEL SECURITY;
-CREATE POLICY topologia_viewport_tenant ON topologia_viewport FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(empresa_id)) WITH CHECK (app_can_access_empresa(empresa_id));
+CREATE POLICY topologia_viewport_read ON topologia_viewport FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY topologia_viewport_write ON topologia_viewport FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE links_dedicados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE links_dedicados FORCE ROW LEVEL SECURITY;
-CREATE POLICY links_tenant ON links_dedicados FOR ALL TO uptimex_app
-  USING (app_can_access_empresa(empresa_id)) WITH CHECK (app_can_access_empresa(empresa_id));
+CREATE POLICY links_read ON links_dedicados FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY links_write ON links_dedicados FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE configuracoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracoes FORCE ROW LEVEL SECURITY;
@@ -283,29 +320,39 @@ CREATE POLICY auditoria_worker ON auditoria FOR ALL TO uptimex_worker
 -- o worker (motor) atualiza status/insere metricas via policies USING(true).
 ALTER TABLE antenas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE antenas FORCE ROW LEVEL SECURITY;
-CREATE POLICY antenas_admin ON antenas FOR ALL TO uptimex_app
-  USING (app_is_admin()) WITH CHECK (app_is_admin());
+CREATE POLICY antenas_read ON antenas FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_write ON antenas FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 CREATE POLICY antenas_worker ON antenas FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 ALTER TABLE antenas_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE antenas_nodes FORCE ROW LEVEL SECURITY;
-CREATE POLICY antenas_nodes_admin ON antenas_nodes FOR ALL TO uptimex_app
-  USING (app_is_admin()) WITH CHECK (app_is_admin());
+CREATE POLICY antenas_nodes_read ON antenas_nodes FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_nodes_write ON antenas_nodes FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE antenas_enlaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE antenas_enlaces FORCE ROW LEVEL SECURITY;
-CREATE POLICY antenas_enlaces_admin ON antenas_enlaces FOR ALL TO uptimex_app
-  USING (app_is_admin()) WITH CHECK (app_is_admin());
+CREATE POLICY antenas_enlaces_read ON antenas_enlaces FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_enlaces_write ON antenas_enlaces FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE antenas_viewport ENABLE ROW LEVEL SECURITY;
 ALTER TABLE antenas_viewport FORCE ROW LEVEL SECURITY;
-CREATE POLICY antenas_viewport_admin ON antenas_viewport FOR ALL TO uptimex_app
-  USING (app_is_admin()) WITH CHECK (app_is_admin());
+CREATE POLICY antenas_viewport_read ON antenas_viewport FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_viewport_write ON antenas_viewport FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 
 ALTER TABLE antenas_metricas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE antenas_metricas FORCE ROW LEVEL SECURITY;
-CREATE POLICY antenas_metricas_admin ON antenas_metricas FOR ALL TO uptimex_app
-  USING (app_is_admin()) WITH CHECK (app_is_admin());
+CREATE POLICY antenas_metricas_read ON antenas_metricas FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_metricas_write ON antenas_metricas FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
 CREATE POLICY antenas_metricas_worker ON antenas_metricas FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
 GRANT USAGE ON SCHEMA public TO uptimex_app, uptimex_worker;

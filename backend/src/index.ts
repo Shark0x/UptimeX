@@ -246,7 +246,9 @@ io.on('connection', async (socket) => {
     }
     next();
   });
-  if (usuario.role === 'admin') {
+  // Staff interno (admin/operador/visualizador) recebe o feed global do NOC. O
+  // escopo por empresa (empresaIds) fica reservado a um eventual acesso por cliente.
+  if (usuario.role === 'admin' || usuario.role === 'operador' || usuario.role === 'visualizador') {
     socket.join('antenas_noc');
     socket.join('empresas_admin');
   } else if (usuario.empresaIds.length > 0) {
