@@ -24,22 +24,18 @@ export const AntenaNode = memo(function AntenaNode({ data, selected }: NodeProps
   const Icone = iconeAntenaPorTipo(data.tipo_visual || 'antena_ptp');
   const isTorre = data.tipo_visual === 'torre' || data.tipo_wireless === 'torre';
 
-  // Sem caixa e sem pontinho: online fica neutro (calmo). O status só "grita" quando
-  // há problema — o ícone e o nome viram âmbar (degradado) ou vermelho piscando (queda).
+  // Sem caixa: o status "grita" pelo ÍCONE (âmbar no degradado, vermelho piscando na
+  // queda). O NOME fica sempre branco num chip opaco (abaixo), pra legibilidade na TV.
   let iconeClass = 'text-slate-500'; // aguardando (sem monitor)
-  let nomeClass = 'text-slate-200';
   let alertaClass = '';
 
   if (isOffline) {
     iconeClass = 'text-offline';
-    nomeClass = 'text-offline';
     alertaClass = 'animate-alert-blink';
   } else if (isDegradado) {
     iconeClass = 'text-warn';
-    nomeClass = 'text-slate-100';
   } else if (isOnline) {
     iconeClass = 'text-slate-100';
-    nomeClass = 'text-slate-100';
   }
 
   const tam = isTorre ? 46 : 40;
@@ -67,14 +63,22 @@ export const AntenaNode = memo(function AntenaNode({ data, selected }: NodeProps
         <Icone width={tam} height={tam} />
       </span>
 
-      {/* Nome embaixo do objeto (fora do fluxo, não mexe na medição do nó) */}
+      {/* Nome embaixo do objeto, num CHIP opaco pra a linha de enlace não cortar o
+          texto. No React Flow o nó fica acima dos edges, então o chip cobre o traço.
+          O chip é inline-block => dimensiona pela largura real do texto (bounding box),
+          e escala junto com o zoom porque o React Flow transforma a camada inteira.
+          Fora do fluxo (absolute) pra não alterar a medição/posição do nó. */}
       <div
         className="absolute left-1/2 top-full -translate-x-1/2 mt-1.5 pointer-events-none"
         style={{ whiteSpace: 'nowrap' }}
       >
         <span
-          className={`font-display text-[12px] font-semibold leading-none ${nomeClass}`}
-          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}
+          className="inline-block font-display text-[12px] font-extrabold leading-none rounded-[5px] px-1.5 py-1"
+          style={{
+            color: '#ffffff',
+            backgroundColor: 'rgba(6,10,8,0.86)',
+            border: '1px solid rgba(34,197,94,0.25)',
+          }}
           title={data.label}
         >
           {data.label}
