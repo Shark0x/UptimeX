@@ -77,7 +77,6 @@ export const AntenaNode = memo(function AntenaNode({ data, selected }: NodeProps
           style={{
             color: '#ffffff',
             backgroundColor: 'rgba(6,10,8,0.86)',
-            border: '1px solid rgba(34,197,94,0.25)',
           }}
           title={data.label}
         >
