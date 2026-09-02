@@ -73,7 +73,7 @@ export const AntenaNode = memo(function AntenaNode({ data, selected }: NodeProps
         style={{ whiteSpace: 'nowrap' }}
       >
         <span
-          className="inline-block font-display text-[12px] font-extrabold leading-none rounded-[5px] px-1.5 py-1"
+          className="inline-block font-display text-[12px] font-medium leading-none rounded-[4px] px-[5px] py-[2px]"
           style={{
             color: '#ffffff',
             backgroundColor: 'rgba(6,10,8,0.86)',
