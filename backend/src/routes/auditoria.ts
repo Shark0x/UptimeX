@@ -20,6 +20,15 @@ auditoriaRouter.get('/', async (req, res) => {
     return res.status(404).json({ erro: 'Empresa não encontrada' });
   }
 
+  // Categoria: administrativa = ações globais (empresa_id nulo: usuários, sistema,
+  // chaves MCP, board de antenas); operacional = ações por empresa (empresa_id não
+  // nulo). A RLS já garante que só admin enxerga as administrativas.
+  const categoria = String(req.query.categoria || '');
+  const filtroCategoria =
+    categoria === 'administrativa' ? 'AND empresa_id IS NULL'
+    : categoria === 'operacional' ? 'AND empresa_id IS NOT NULL'
+    : '';
+
   const escopo = filtroEmpresaSql(req.user!, 'empresa_id');
   const filtroSolicitado = empresaSolicitada ? 'AND empresa_id = ?' : '';
   const params = [
@@ -30,7 +39,7 @@ auditoriaRouter.get('/', async (req, res) => {
   const [rows] = await pool.query(
     `SELECT id, usuario, acao, entidade, entidade_id, detalhes, "timestamp" FROM auditoria
      WHERE acao NOT IN ('login', 'login_falhou')
-       AND ${escopo.sql} ${filtroSolicitado}
+       AND ${escopo.sql} ${filtroSolicitado} ${filtroCategoria}
      ORDER BY "timestamp" DESC LIMIT ?`,
     params
   );

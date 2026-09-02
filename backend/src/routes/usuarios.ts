@@ -234,20 +234,39 @@ export function criarUsuariosRouter(io: SocketServer) {
       }
     }
 
-    await pool.query(
-      `UPDATE usuarios SET ativo = FALSE, sessao_versao = sessao_versao + 1 WHERE id = ?`,
-      [alvoId]
-    );
+    // ?definitivo=true => hard delete; senão, soft delete (desativa).
+    const definitivo = String(req.query.definitivo || '') === 'true';
     io.in(`usuario_${alvoId}`).disconnectSockets(true);
-    await registrarAuditoria(
-      req.user!.username,
-      'remover',
-      'usuario',
-      alvoId,
-      `Desativou usuário "${alvo.username}"`,
-      req.ip,
-      { usuarioId: req.user!.id }
-    );
+
+    if (definitivo) {
+      // Hard delete seguro: FKs de usuarios sao CASCADE (sessoes/vinculos de empresa)
+      // ou SET NULL (auditoria, chaves MCP, presets). A auditoria guarda o username
+      // em TEXTO alem do id, entao o historico fica preservado mesmo apagando a conta.
+      await pool.query(`DELETE FROM usuarios WHERE id = ?`, [alvoId]);
+      await registrarAuditoria(
+        req.user!.username,
+        'excluir',
+        'usuario',
+        alvoId,
+        `Excluiu definitivamente o usuário "${alvo.username}"`,
+        req.ip,
+        { usuarioId: req.user!.id }
+      );
+    } else {
+      await pool.query(
+        `UPDATE usuarios SET ativo = FALSE, sessao_versao = sessao_versao + 1 WHERE id = ?`,
+        [alvoId]
+      );
+      await registrarAuditoria(
+        req.user!.username,
+        'remover',
+        'usuario',
+        alvoId,
+        `Desativou usuário "${alvo.username}"`,
+        req.ip,
+        { usuarioId: req.user!.id }
+      );
+    }
     res.json({ ok: true });
   });
 

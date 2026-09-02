@@ -7,16 +7,23 @@ const CORES_ACAO: Record<string, string> = {
   remover: 'text-offline',
 };
 
-export function AuditLog() {
+export function AuditLog({ categoria }: { categoria?: 'administrativa' | 'operacional' }) {
   const [itens, setItens] = useState<AuditoriaItem[]>([]);
 
   useEffect(() => {
-    api.auditoria().then(setItens);
-  }, []);
+    api.auditoria(categoria).then(setItens);
+  }, [categoria]);
+
+  const titulo =
+    categoria === 'administrativa'
+      ? 'Auditoria administrativa'
+      : categoria === 'operacional'
+      ? 'Auditoria operacional'
+      : 'Log de auditoria';
 
   return (
-    <div className="glass-panel p-4 h-full overflow-y-auto">
-      <p className="text-[10px] uppercase tracking-widest text-muted font-mono mb-3">Log de auditoria</p>
+    <div className="glass-panel p-4 h-full overflow-y-auto animate-fade-up">
+      <p className="text-[10px] uppercase tracking-widest text-muted font-mono mb-3">{titulo}</p>
       <div className="space-y-1">
         {itens.map((item) => (
           <div key={item.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 font-mono text-xs">

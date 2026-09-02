@@ -370,7 +370,8 @@ export const api = {
   criarEdge: (payload: any) => req('/topologia/edges', { method: 'POST', body: JSON.stringify(payload) }),
   removerEdge: (id: number) => req(`/topologia/edges/${id}`, { method: 'DELETE' }),
 
-  auditoria: (): Promise<AuditoriaItem[]> => req('/auditoria'),
+  auditoria: (categoria?: 'administrativa' | 'operacional'): Promise<AuditoriaItem[]> =>
+    req(`/auditoria${categoria ? `?categoria=${categoria}` : ''}`),
 
   listarLinks: (empresaId: number): Promise<LinkDedicado[]> => req(`/links/empresa/${empresaId}`),
   criarLink: (empresa_id: number, bloco: string, descricao: string) =>
@@ -424,7 +425,8 @@ export const api = {
     }),
   atualizarEmpresasUsuario: (id: number, empresa_ids: number[]) =>
     req(`/usuarios/${id}/empresas`, { method: 'PUT', body: JSON.stringify({ empresa_ids }) }),
-  removerUsuario: (id: number) => req(`/usuarios/${id}`, { method: 'DELETE' }),
+  removerUsuario: (id: number, definitivo = false) =>
+    req(`/usuarios/${id}${definitivo ? '?definitivo=true' : ''}`, { method: 'DELETE' }),
   redefinirSenhaUsuario: (id: number, nova_senha: string) =>
     req(`/usuarios/${id}/password`, { method: 'PUT', body: JSON.stringify({ nova_senha }) }),
 };

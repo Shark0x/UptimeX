@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ConfigResumo, Empresa, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
-import { AcessosLog } from '../components/AcessosLog';
+import { AuditoriaCentral } from '../components/AuditoriaCentral';
 import { PasswordInput } from '../components/PasswordInput';
 import { APP_VERSION } from '../version';
 
@@ -15,7 +15,7 @@ const RESUMO_PADRAO: ConfigResumo = {
   semanalHora: 8,
 };
 
-type AbaAdmin = 'sistema' | 'usuarios' | 'alertas' | 'integracao' | 'acessos';
+type AbaAdmin = 'sistema' | 'usuarios' | 'alertas' | 'integracao' | 'auditoria';
 
 interface Overview {
   empresas: number;
@@ -303,13 +303,28 @@ export function Admin() {
     }
   }
 
-  async function removerUsuario(id: number, nome: string) {
+  // Desativar (soft, reversível) vs Excluir (hard, definitivo). Excluir pede confirmação.
+  const [confirmarExcluir, setConfirmarExcluir] = useState<number | null>(null);
+
+  async function desativarUsuario(id: number, nome: string) {
     try {
       await api.removerUsuario(id);
-      toast.sucesso(`Usuário "${nome}" removido`);
+      toast.sucesso(`Usuário "${nome}" desativado`);
     } catch (e: any) {
-      toast.erro(e.message || 'Não foi possível remover o usuário.');
+      toast.erro(e.message || 'Não foi possível desativar o usuário.');
     }
+    carregarUsuarios();
+    carregarOverview();
+  }
+
+  async function excluirUsuario(id: number, nome: string) {
+    try {
+      await api.removerUsuario(id, true);
+      toast.sucesso(`Usuário "${nome}" excluído definitivamente`);
+    } catch (e: any) {
+      toast.erro(e.message || 'Não foi possível excluir o usuário.');
+    }
+    setConfirmarExcluir(null);
     carregarUsuarios();
     carregarOverview();
   }
@@ -319,7 +334,7 @@ export function Admin() {
     { id: 'usuarios', label: 'Usuários' },
     { id: 'alertas', label: 'Alertas' },
     { id: 'integracao', label: 'Integração IA' },
-    { id: 'acessos', label: 'Acessos' },
+    { id: 'auditoria', label: 'Auditoria' },
   ];
 
   return (
@@ -448,16 +463,33 @@ export function Admin() {
                       <span className={`text-xs font-mono ${u.ativo ? 'text-online' : 'text-offline'}`}>{u.ativo ? 'ativo' : 'inativo'}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {isAdmin && u.ativo && (
+                      {isAdmin && (
                         <div className="flex items-center justify-end gap-3">
-                          <button onClick={() => abrirEdicao(u)} className="text-xs text-signal-400 hover:underline">
-                            Editar
-                          </button>
-                          {u.id !== usuario?.id && (
-                            <button onClick={() => removerUsuario(u.id, u.username)} className="text-xs text-offline hover:underline">
-                              Remover
+                          {u.ativo && (
+                            <button onClick={() => abrirEdicao(u)} className="text-xs text-signal-400 hover:underline">
+                              Editar
                             </button>
                           )}
+                          {u.ativo && u.id !== usuario?.id && (
+                            <button onClick={() => desativarUsuario(u.id, u.username)} className="text-xs text-warn hover:underline" title="Bloqueia o acesso, mas mantém a conta (reversível)">
+                              Desativar
+                            </button>
+                          )}
+                          {u.id !== usuario?.id &&
+                            (confirmarExcluir === u.id ? (
+                              <span className="flex items-center gap-2">
+                                <button onClick={() => excluirUsuario(u.id, u.username)} className="text-xs text-offline font-bold hover:underline">
+                                  Confirmar exclusão
+                                </button>
+                                <button onClick={() => setConfirmarExcluir(null)} className="text-xs text-muted hover:underline">
+                                  cancelar
+                                </button>
+                              </span>
+                            ) : (
+                              <button onClick={() => setConfirmarExcluir(u.id)} className="text-xs text-offline hover:underline" title="Apaga a conta de vez — irreversível (histórico de auditoria é preservado)">
+                                Excluir
+                              </button>
+                            ))}
                         </div>
                       )}
                     </td>
@@ -717,13 +749,10 @@ export function Admin() {
         </div>
       )}
 
-      {/* ================= ACESSOS ================= */}
-      {aba === 'acessos' && (
-        <div className="animate-fade-up">
-          <p className="text-muted text-sm font-mono mb-3">
-            login e tentativas de login no site — usuário, IP e localização
-          </p>
-          <AcessosLog />
+      {/* ================= AUDITORIA (centralizada) ================= */}
+      {aba === 'auditoria' && (
+        <div className="animate-fade-up h-[calc(100%-1rem)] min-h-0">
+          <AuditoriaCentral />
         </div>
       )}
 

@@ -6,13 +6,12 @@ import { StatusCard } from '../components/StatusCard';
 import { EditarDispositivoModal } from '../components/EditarDispositivoModal';
 import { TopologyMap } from '../components/TopologyMap';
 import { HistoryTimeline } from '../components/HistoryTimeline';
-import { AuditLog } from '../components/AuditLog';
 import { DeviceDrawer } from '../components/DeviceDrawer';
 import { LinksDedicados } from '../components/LinksDedicados';
 import { PingHistoryChart } from '../components/PingHistoryChart';
 import { RelatorioEmpresa } from './RelatorioEmpresa';
 
-type Aba = 'status' | 'topologia' | 'links' | 'historico' | 'auditoria';
+type Aba = 'status' | 'topologia' | 'links' | 'historico';
 
 function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; tom?: 'offline' | 'warn' | 'online' }) {
   const cor = tom === 'offline' ? 'text-offline' : tom === 'warn' ? 'text-warn' : tom === 'online' ? 'text-online' : 'text-slate-100';
@@ -97,7 +96,6 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
     { id: 'topologia', label: 'Topologia' },
     { id: 'links', label: 'Link Dedicado' },
     { id: 'historico', label: 'Histórico' },
-    { id: 'auditoria', label: 'Auditoria' },
   ];
 
   return (
@@ -187,7 +185,6 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
             </div>
           </div>
         )}
-        {aba === 'auditoria' && <AuditLog />}
       </div>
 
       {dispositivoDrawer && (
