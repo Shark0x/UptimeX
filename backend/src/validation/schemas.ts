@@ -217,6 +217,17 @@ export const configMapaAntenaSchema = z.object({
   ocultar_labels: z.boolean(),
 });
 
+// Presets (versoes salvas) da topologia de antenas.
+export const criarPresetAntenaSchema = z.object({
+  nome: z.string().trim().min(1).max(120),
+});
+export const editarPresetAntenaSchema = z
+  .object({
+    nome: z.string().trim().min(1).max(120).optional(),
+    resnapshot: z.coerce.boolean().optional(),
+  })
+  .refine((v) => v.nome !== undefined || v.resnapshot === true, 'Nada para atualizar.');
+
 export const configResumoSchema = z.object({
   diarioAtivo: z.boolean(),
   diarioHora: z.coerce.number().int().min(0).max(23),

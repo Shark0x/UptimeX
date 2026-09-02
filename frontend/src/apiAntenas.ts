@@ -151,6 +151,13 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+export interface AntenaPreset {
+  id: number;
+  nome: string;
+  ativo_tv: boolean;
+  atualizado_em: string;
+}
+
 export const antenasApi = {
   listarAntenas: (): Promise<AntenaWireless[]> => req('/'),
   criarAntena: (payload: NovaAntenaPayload): Promise<AntenaWireless & { node_id?: number }> =>
@@ -219,6 +226,22 @@ export const antenasApi = {
   // Config global do board (compartilhada entre telas): ocultar todos os rotulos.
   salvarConfigMapa: (ocultar_labels: boolean): Promise<{ ok: boolean; ocultar_labels: boolean }> =>
     req('/topologia/config', { method: 'PUT', body: JSON.stringify({ ocultar_labels }) }),
+
+  // Presets (versões salvas) da topologia. A TV lê o preset ativo (congelado).
+  obterTopologiaTV: (): Promise<AntenaTopologyData> => req('/topologia/tv'),
+  listarPresets: (): Promise<AntenaPreset[]> => req('/topologia/presets'),
+  criarPreset: (nome: string): Promise<AntenaPreset> =>
+    req('/topologia/presets', { method: 'POST', body: JSON.stringify({ nome }) }),
+  renomearPreset: (id: number, nome: string): Promise<AntenaPreset> =>
+    req(`/topologia/presets/${id}`, { method: 'PUT', body: JSON.stringify({ nome }) }),
+  resnapshotPreset: (id: number): Promise<AntenaPreset> =>
+    req(`/topologia/presets/${id}`, { method: 'PUT', body: JSON.stringify({ resnapshot: true }) }),
+  ativarPreset: (id: number): Promise<{ ok: boolean }> =>
+    req(`/topologia/presets/${id}/ativar`, { method: 'POST' }),
+  carregarPreset: (id: number): Promise<{ ok: boolean }> =>
+    req(`/topologia/presets/${id}/carregar`, { method: 'POST' }),
+  removerPreset: (id: number): Promise<{ ok: boolean }> =>
+    req(`/topologia/presets/${id}`, { method: 'DELETE' }),
 };
 
 export { socket };

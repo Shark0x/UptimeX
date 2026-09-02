@@ -355,6 +355,14 @@ CREATE POLICY antenas_metricas_write ON antenas_metricas FOR ALL TO uptimex_app
   USING (app_can_operate()) WITH CHECK (app_can_operate());
 CREATE POLICY antenas_metricas_worker ON antenas_metricas FOR ALL TO uptimex_worker USING (true) WITH CHECK (true);
 
+-- Presets da topologia: staff lê; admin/operador escreve (visualizador não).
+ALTER TABLE antenas_presets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE antenas_presets FORCE ROW LEVEL SECURITY;
+CREATE POLICY antenas_presets_read ON antenas_presets FOR SELECT TO uptimex_app
+  USING (app_is_staff());
+CREATE POLICY antenas_presets_write ON antenas_presets FOR ALL TO uptimex_app
+  USING (app_can_operate()) WITH CHECK (app_can_operate());
+
 GRANT USAGE ON SCHEMA public TO uptimex_app, uptimex_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO uptimex_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO uptimex_app;

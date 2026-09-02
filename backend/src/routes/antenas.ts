@@ -15,9 +15,11 @@ import {
   criarAntenaSchema,
   criarEnlaceAntenaSchema,
   criarNodeAntenaSchema,
+  criarPresetAntenaSchema,
   editarAntenaSchema,
   editarEnlaceAntenaSchema,
   editarNodeAntenaSchema,
+  editarPresetAntenaSchema,
   moverNodeAntenaSchema,
   viewportAntenaSchema,
 } from '../validation/schemas';
@@ -39,10 +41,11 @@ export function criarAntenasRouter(io: SocketServer) {
   const router = Router();
   definirSocketIo(io);
 
-  // O board de antenas representa a infraestrutura global do provedor, fora do
-  // escopo de tenants. Ate existir um papel NOC dedicado, somente admins podem
-  // ler dados, entrar na TV ou executar sondagens desse modulo.
-  router.use(authMiddleware, requireRole('admin'));
+  // O board de antenas e a infraestrutura global do NOC (fora do escopo de tenants).
+  // LEITURA: qualquer usuario autenticado (staff = admin/operador/visualizador) — o
+  // visualizador precisa ver a TV. ESCRITA: cada rota exige admin/operador abaixo
+  // (visualizador nunca escreve). A RLS do banco reforca isso (app_is_staff / app_can_operate).
+  router.use(authMiddleware);
 
   // Board global do provedor: antenas não pertencem às empresas monitoradas.
   router.get('/', async (_req, res) => {
@@ -55,7 +58,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Criar nova antena (e opcionalmente o nó visual na topologia)
-  router.post('/', requireRole('admin'), validateBody(criarAntenaSchema), async (req, res) => {
+  router.post('/', requireRole('admin', 'operador'), validateBody(criarAntenaSchema), async (req, res) => {
     const {
       nome,
       ip,
@@ -141,7 +144,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Atualizar antena
-  router.put('/:id', requireRole('admin'), validateBody(editarAntenaSchema), async (req, res) => {
+  router.put('/:id', requireRole('admin', 'operador'), validateBody(editarAntenaSchema), async (req, res) => {
     const id = Number(req.params.id);
     const {
       nome,
@@ -206,7 +209,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Excluir antena
-  router.delete('/:id', requireRole('admin'), async (req, res) => {
+  router.delete('/:id', requireRole('admin', 'operador'), async (req, res) => {
     const id = Number(req.params.id);
     try {
       pararMonitoramentoAntena(id);
@@ -284,43 +287,41 @@ export function criarAntenasRouter(io: SocketServer) {
     }
   });
 
-  // Obter o board único da infraestrutura wireless do provedor
+  // Snapshot do board AO VIVO (nós + enlaces + viewport). Reusado pela topologia
+  // e pelos presets (criar/carregar). LIMIT 1 no viewport também lê instalações
+  // antigas em que a linha ainda tinha empresa_id em vez do id fixo do board global.
+  async function snapshotAoVivo() {
+    const [nodes]: any = await pool.query(
+      `SELECT n.id, n.antena_id, n.label, n.tipo_visual, n.pos_x, n.pos_y,
+             a.ip, a.fabricante, a.modelo, a.tipo_wireless, a.frequencia_mhz,
+             a.largura_canal_mhz, a.ssid, a.sinal_esperado_dbm,
+             a.status_atual, a.latencia_ms, a.perda_pct, a.ultima_verificacao
+      FROM antenas_nodes n
+      LEFT JOIN antenas a ON n.antena_id = a.id
+      ORDER BY n.id ASC`
+    );
+    const [edges]: any = await pool.query(
+      `SELECT id, origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label
+      FROM antenas_enlaces
+      ORDER BY id ASC`
+    );
+    const [vp]: any = await pool.query(
+      `SELECT pos_x, pos_y, zoom, ocultar_labels FROM antenas_viewport LIMIT 1`
+    );
+    return { nodes, edges, viewport: vp[0] || { pos_x: 0, pos_y: 0, zoom: 1, ocultar_labels: false } };
+  }
+
+  // Obter o board único da infraestrutura wireless do provedor (board AO VIVO)
   router.get('/topologia', async (_req, res) => {
     try {
-      const [nodes]: any = await pool.query(
-        `SELECT n.id, n.antena_id, n.label, n.tipo_visual, n.pos_x, n.pos_y,
-               a.ip, a.fabricante, a.modelo, a.tipo_wireless, a.frequencia_mhz,
-               a.largura_canal_mhz, a.ssid, a.sinal_esperado_dbm,
-               a.status_atual, a.latencia_ms, a.perda_pct, a.ultima_verificacao
-        FROM antenas_nodes n
-        LEFT JOIN antenas a ON n.antena_id = a.id
-        ORDER BY n.id ASC`
-      );
-
-      const [edges]: any = await pool.query(
-        `SELECT id, origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label
-        FROM antenas_enlaces
-        ORDER BY id ASC`
-      );
-
-      // LIMIT 1 também lê instalações anteriores, nas quais o viewport ainda
-      // possuía empresa_id em vez do id fixo do board global.
-      const [vp]: any = await pool.query(
-        `SELECT pos_x, pos_y, zoom, ocultar_labels FROM antenas_viewport LIMIT 1`
-      );
-
-      res.json({
-        nodes,
-        edges,
-        viewport: vp[0] || { pos_x: 0, pos_y: 0, zoom: 1, ocultar_labels: false },
-      });
+      res.json(await snapshotAoVivo());
     } catch {
       res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
     }
   });
 
   // Criar nó na topologia
-  router.post('/topologia/nodes', requireRole('admin'), validateBody(criarNodeAntenaSchema), async (req, res) => {
+  router.post('/topologia/nodes', requireRole('admin', 'operador'), validateBody(criarNodeAntenaSchema), async (req, res) => {
     const { antena_id, label, tipo_visual = 'antena_ptp', pos_x = 0, pos_y = 0 } = req.body;
     if (!label) return res.status(400).json({ erro: 'label é obrigatório' });
 
@@ -338,7 +339,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Editar label/ícone de um nó (antena vinculada ou nó decorativo)
-  router.put('/topologia/nodes/:id', requireRole('admin'), validateBody(editarNodeAntenaSchema), async (req, res) => {
+  router.put('/topologia/nodes/:id', requireRole('admin', 'operador'), validateBody(editarNodeAntenaSchema), async (req, res) => {
     const id = Number(req.params.id);
     const { label, tipo_visual } = req.body;
     try {
@@ -353,7 +354,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Mover posição do nó
-  router.put('/topologia/nodes/:id/posicao', requireRole('admin'), validateBody(moverNodeAntenaSchema), async (req, res) => {
+  router.put('/topologia/nodes/:id/posicao', requireRole('admin', 'operador'), validateBody(moverNodeAntenaSchema), async (req, res) => {
     const id = Number(req.params.id);
     const { pos_x, pos_y } = req.body;
     try {
@@ -365,7 +366,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Remover nó da topologia
-  router.delete('/topologia/nodes/:id', requireRole('admin'), async (req, res) => {
+  router.delete('/topologia/nodes/:id', requireRole('admin', 'operador'), async (req, res) => {
     const id = Number(req.params.id);
     try {
       await pool.query(`DELETE FROM antenas_nodes WHERE id = ?`, [id]);
@@ -376,7 +377,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Criar enlace (Edge)
-  router.post('/topologia/edges', requireRole('admin'), validateBody(criarEnlaceAntenaSchema), async (req, res) => {
+  router.post('/topologia/edges', requireRole('admin', 'operador'), validateBody(criarEnlaceAntenaSchema), async (req, res) => {
     const {
       origem_node_id,
       destino_node_id,
@@ -417,7 +418,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Editar enlace (nome, tipo, cor, reta/curva, espessura, estilo, fluxo, frequência, distância, capacidade)
-  router.put('/topologia/edges/:id', requireRole('admin'), validateBody(editarEnlaceAntenaSchema), async (req, res) => {
+  router.put('/topologia/edges/:id', requireRole('admin', 'operador'), validateBody(editarEnlaceAntenaSchema), async (req, res) => {
     const id = Number(req.params.id);
     const { tipo_enlace, label, cor, curvo, frequencia, distancia_km, capacidade_mbps, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label, origem_node_id, destino_node_id } = req.body;
     const animadoVal = animado === undefined || animado === null ? null : !!animado;
@@ -472,7 +473,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Remover enlace
-  router.delete('/topologia/edges/:id', requireRole('admin'), async (req, res) => {
+  router.delete('/topologia/edges/:id', requireRole('admin', 'operador'), async (req, res) => {
     const id = Number(req.params.id);
     try {
       await pool.query(`DELETE FROM antenas_enlaces WHERE id = ?`, [id]);
@@ -483,7 +484,7 @@ export function criarAntenasRouter(io: SocketServer) {
   });
 
   // Salvar o enquadramento do board global
-  router.put('/topologia/viewport', requireRole('admin'), validateBody(viewportAntenaSchema), async (req, res) => {
+  router.put('/topologia/viewport', requireRole('admin', 'operador'), validateBody(viewportAntenaSchema), async (req, res) => {
     const { pos_x, pos_y, zoom } = req.body;
     try {
       // Board global: uma unica linha (id = 1) guarda o enquadramento do mapa.
@@ -501,7 +502,7 @@ export function criarAntenasRouter(io: SocketServer) {
 
   // Config global do board (ex.: ocultar todos os rotulos das conexoes de uma vez).
   // Fica na mesma linha unica (id = 1) do viewport pra ser compartilhada entre telas.
-  router.put('/topologia/config', requireRole('admin'), validateBody(configMapaAntenaSchema), async (req, res) => {
+  router.put('/topologia/config', requireRole('admin', 'operador'), validateBody(configMapaAntenaSchema), async (req, res) => {
     const ocultarLabels = !!req.body.ocultar_labels;
     try {
       await pool.query(
@@ -511,6 +512,170 @@ export function criarAntenasRouter(io: SocketServer) {
         [ocultarLabels]
       );
       res.json({ ok: true, ocultar_labels: ocultarLabels });
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // ===================== PRESETS DA TOPOLOGIA =====================
+  // Versões salvas (snapshots) do board. A TV mostra o preset marcado como ativo,
+  // então editar o board ao vivo NÃO muda a TV até salvar/ativar um preset. Assim
+  // ninguém altera sem querer o que está sendo exibido. Escrita = admin/operador.
+
+  // Lista os presets (staff lê)
+  router.get('/topologia/presets', async (_req, res) => {
+    try {
+      const [rows]: any = await pool.query(
+        `SELECT id, nome, ativo_tv, atualizado_em FROM antenas_presets ORDER BY atualizado_em DESC, id DESC`
+      );
+      res.json(rows);
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // Snapshot pra TV: o preset ativo (congelado). Sem preset ativo, cai no board ao vivo.
+  router.get('/topologia/tv', async (_req, res) => {
+    try {
+      const [rows]: any = await pool.query(
+        `SELECT dados FROM antenas_presets WHERE ativo_tv = TRUE LIMIT 1`
+      );
+      if (rows[0]?.dados) {
+        const dados = typeof rows[0].dados === 'string' ? JSON.parse(rows[0].dados) : rows[0].dados;
+        return res.json(dados);
+      }
+      res.json(await snapshotAoVivo());
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // Cria um preset a partir do board AO VIVO atual
+  router.post('/topologia/presets', requireRole('admin', 'operador'), validateBody(criarPresetAntenaSchema), async (req, res) => {
+    try {
+      const snap = await snapshotAoVivo();
+      const [ins]: any = await pool.query(
+        `INSERT INTO antenas_presets (nome, dados, atualizado_por)
+         VALUES (?, ?::jsonb, ?) RETURNING id, nome, ativo_tv, atualizado_em`,
+        [req.body.nome, JSON.stringify(snap), req.user!.id]
+      );
+      await registrarAuditoria(req.user!.username, 'criar', 'antena_preset', ins[0].id, `Preset "${req.body.nome}"`, req.ip, { usuarioId: req.user!.id });
+      res.status(201).json(ins[0]);
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // Renomeia e/ou re-salva o snapshot do board no preset
+  router.put('/topologia/presets/:id', requireRole('admin', 'operador'), validateBody(editarPresetAntenaSchema), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID invalido.' });
+    try {
+      const sets: string[] = [];
+      const params: any[] = [];
+      if (req.body.nome !== undefined) { sets.push('nome = ?'); params.push(req.body.nome); }
+      if (req.body.resnapshot === true) { sets.push('dados = ?::jsonb'); params.push(JSON.stringify(await snapshotAoVivo())); }
+      sets.push('atualizado_em = now()', 'atualizado_por = ?');
+      params.push(req.user!.id, id);
+      const [upd]: any = await pool.query(
+        `UPDATE antenas_presets SET ${sets.join(', ')} WHERE id = ? RETURNING id, nome, ativo_tv, atualizado_em`,
+        params
+      );
+      if (!upd[0]) return res.status(404).json({ erro: 'Preset nao encontrado.' });
+      res.json(upd[0]);
+    } catch {
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    }
+  });
+
+  // Marca um preset como ativo pra TV (desmarca os outros, em transação)
+  router.post('/topologia/presets/:id/ativar', requireRole('admin', 'operador'), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID invalido.' });
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [existe]: any = await conn.query(`SELECT id FROM antenas_presets WHERE id = ?`, [id]);
+      if (!existe[0]) { await conn.rollback(); return res.status(404).json({ erro: 'Preset nao encontrado.' }); }
+      await conn.query(`UPDATE antenas_presets SET ativo_tv = FALSE WHERE ativo_tv = TRUE`);
+      await conn.query(`UPDATE antenas_presets SET ativo_tv = TRUE WHERE id = ?`, [id]);
+      await conn.commit();
+      await registrarAuditoria(req.user!.username, 'atualizar', 'antena_preset', id, 'Preset ativado na TV', req.ip, { usuarioId: req.user!.id });
+      res.json({ ok: true });
+    } catch {
+      await conn.rollback();
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    } finally {
+      conn.release();
+    }
+  });
+
+  // Carrega o snapshot do preset de volta pro board AO VIVO (substitui nós/enlaces/viewport)
+  router.post('/topologia/presets/:id/carregar', requireRole('admin', 'operador'), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID invalido.' });
+    const conn = await pool.getConnection();
+    try {
+      const [rows]: any = await conn.query(`SELECT dados FROM antenas_presets WHERE id = ?`, [id]);
+      if (!rows[0]) { conn.release(); return res.status(404).json({ erro: 'Preset nao encontrado.' }); }
+      const dados = typeof rows[0].dados === 'string' ? JSON.parse(rows[0].dados) : rows[0].dados;
+      const nodes: any[] = Array.isArray(dados?.nodes) ? dados.nodes : [];
+      const edges: any[] = Array.isArray(dados?.edges) ? dados.edges : [];
+      const vp = dados?.viewport || { pos_x: 0, pos_y: 0, zoom: 1, ocultar_labels: false };
+
+      await conn.beginTransaction();
+      // Limpa o board (enlaces antes dos nós por causa das FKs)
+      await conn.query(`DELETE FROM antenas_enlaces`);
+      await conn.query(`DELETE FROM antenas_nodes`);
+
+      // Recria os nós com ids NOVOS; mapa id_antigo -> id_novo pra remapear os enlaces.
+      const mapa = new Map<number, number>();
+      for (const n of nodes) {
+        // antena_id via subquery: se a antena foi removida desde o snapshot, entra NULL.
+        const [ins]: any = await conn.query(
+          `INSERT INTO antenas_nodes (antena_id, label, tipo_visual, pos_x, pos_y)
+           VALUES ((SELECT id FROM antenas WHERE id = ?), ?, ?, ?, ?) RETURNING id`,
+          [n.antena_id ?? null, String(n.label ?? ''), String(n.tipo_visual ?? 'antena_ptp'), Number(n.pos_x) || 0, Number(n.pos_y) || 0]
+        );
+        mapa.set(Number(n.id), Number(ins[0].id));
+      }
+      for (const e of edges) {
+        const origem = mapa.get(Number(e.origem_node_id));
+        const destino = mapa.get(Number(e.destino_node_id));
+        if (!origem || !destino) continue; // enlace órfão no snapshot: ignora
+        await conn.query(
+          `INSERT INTO antenas_enlaces
+             (origem_node_id, destino_node_id, tipo_enlace, label, frequencia, distancia_km, capacidade_mbps, cor, curvo, espessura, estilo, animado, origem_lado, destino_lado, formato, mostrar_label)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [origem, destino, e.tipo_enlace ?? 'ptp_wireless', e.label ?? null, e.frequencia ?? null, e.distancia_km ?? null, e.capacidade_mbps ?? null, e.cor ?? null, !!e.curvo, e.espessura ?? null, e.estilo ?? null, e.animado ?? null, e.origem_lado ?? null, e.destino_lado ?? null, e.formato ?? null, e.mostrar_label ?? true]
+        );
+      }
+      await conn.query(
+        `INSERT INTO antenas_viewport (id, pos_x, pos_y, zoom, ocultar_labels)
+         VALUES (1, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET pos_x = EXCLUDED.pos_x, pos_y = EXCLUDED.pos_y, zoom = EXCLUDED.zoom, ocultar_labels = EXCLUDED.ocultar_labels`,
+        [Number(vp.pos_x) || 0, Number(vp.pos_y) || 0, Number(vp.zoom) || 1, !!vp.ocultar_labels]
+      );
+      await conn.commit();
+      await registrarAuditoria(req.user!.username, 'atualizar', 'antena_preset', id, 'Preset carregado no editor', req.ip, { usuarioId: req.user!.id });
+      res.json({ ok: true });
+    } catch {
+      await conn.rollback();
+      res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
+    } finally {
+      conn.release();
+    }
+  });
+
+  // Exclui um preset
+  router.delete('/topologia/presets/:id', requireRole('admin', 'operador'), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID invalido.' });
+    try {
+      const [del]: any = await pool.query(`DELETE FROM antenas_presets WHERE id = ? RETURNING id`, [id]);
+      if (!del[0]) return res.status(404).json({ erro: 'Preset nao encontrado.' });
+      await registrarAuditoria(req.user!.username, 'remover', 'antena_preset', id, 'Preset removido', req.ip, { usuarioId: req.user!.id });
+      res.json({ ok: true });
     } catch {
       res.status(500).json({ erro: 'Falha interna ao processar a operacao.' });
     }

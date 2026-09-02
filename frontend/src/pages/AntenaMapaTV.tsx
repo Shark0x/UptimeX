@@ -38,7 +38,8 @@ export function AntenaMapaTV({ onSair }: { onSair: () => void }) {
 
   const carregar = useCallback(async () => {
     try {
-      const [lista, topo] = await Promise.all([antenasApi.listarAntenas(), antenasApi.obterTopologia()]);
+      // A TV mostra o preset ATIVO (congelado); sem preset ativo, cai no board ao vivo.
+      const [lista, topo] = await Promise.all([antenasApi.listarAntenas(), antenasApi.obterTopologiaTV()]);
       setAntenas(lista);
 
       const flowNodes: Node[] = topo.nodes.map((n: NodeType) => ({

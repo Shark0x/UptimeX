@@ -6,6 +6,7 @@ import { AntenaLinksView } from '../components/AntenaLinksView';
 import { AntenaModal } from '../components/AntenaModal';
 import { AntenaLinkModal, EnlacePayload } from '../components/AntenaLinkModal';
 import { AntenaDrawer } from '../components/AntenaDrawer';
+import { AntenaPresets } from '../components/AntenaPresets';
 import { useToast } from '../components/Toast';
 
 type SubAba = 'topologia' | 'lista' | 'enlaces';
@@ -141,7 +142,10 @@ export function Antenas({ onAbrirVisualizacaoTV }: { onAbrirVisualizacaoTV?: () 
 
       <div className="glass-panel p-4 flex items-center gap-5 flex-wrap">
         <Kpi rotulo="Total Antenas" valor={resumo.total} /><Kpi rotulo="Online" valor={resumo.online} tom="online" /><Kpi rotulo="Offline" valor={resumo.offline} tom={resumo.offline > 0 ? 'offline' : undefined} /><Kpi rotulo="Degradadas" valor={resumo.degradadas} tom={resumo.degradadas > 0 ? 'warn' : undefined} /><Kpi rotulo="Latência Média" valor={resumo.latMedia !== null ? `${resumo.latMedia}ms` : '—'} /><Kpi rotulo="Enlaces PTP" valor={resumo.enlaces} />
-        <button onClick={abrirNovaAntena} className="btn-primary text-xs !py-2 !px-3.5 shadow-glow-signal ml-auto">+ Nova Antena</button>
+        <div className="flex items-center gap-2 ml-auto">
+          <AntenaPresets onAplicado={recarregar} />
+          <button onClick={abrirNovaAntena} className="btn-primary text-xs !py-2 !px-3.5 shadow-glow-signal">+ Nova Antena</button>
+        </div>
       </div>
 
       <div className="glass-panel p-1.5 inline-flex gap-1 self-start">
