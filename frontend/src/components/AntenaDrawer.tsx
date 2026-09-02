@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Area,
   AreaChart,
@@ -137,7 +138,11 @@ export function AntenaDrawer({
   const corFab = corFabricante(antenaViva.fabricante);
   const isOnline = antenaViva.status_atual === 'online';
 
-  return (
+  // Portal pro body: o drawer é `fixed`, mas fica DENTRO do container de página
+  // animado (.tela-avante usa transform), que vira o bloco de contenção do fixed e
+  // cria um contexto de empilhamento — aí o drawer passava por cima do header/perfil.
+  // No body ele ancora na viewport e o header (z-50) volta a ficar acima (z-40).
+  return createPortal(
     <aside
       className="fixed inset-y-0 right-0 z-40 w-full max-w-[440px] flex flex-col
         bg-gradient-to-b from-deep-900/95 to-deep-950/95 backdrop-blur-2xl
@@ -379,6 +384,7 @@ export function AntenaDrawer({
           )}
         </div>
       </div>
-    </aside>
+    </aside>,
+    document.body,
   );
 }
