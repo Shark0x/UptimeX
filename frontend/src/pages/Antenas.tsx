@@ -140,7 +140,10 @@ export function Antenas({ onAbrirVisualizacaoTV }: { onAbrirVisualizacaoTV?: () 
         </div>
       </header>
 
-      <div className="glass-panel p-4 flex items-center gap-5 flex-wrap">
+      {/* z-30: a glass-panel cria contexto de empilhamento (backdrop-filter). Sem um
+          z-index explícito, o canvas das antenas (irmão posterior no DOM) pinta por
+          cima do dropdown de Presets. Isto sobe a toolbar inteira acima do board. */}
+      <div className="glass-panel p-4 flex items-center gap-5 flex-wrap relative z-30">
         <Kpi rotulo="Total Antenas" valor={resumo.total} /><Kpi rotulo="Online" valor={resumo.online} tom="online" /><Kpi rotulo="Offline" valor={resumo.offline} tom={resumo.offline > 0 ? 'offline' : undefined} /><Kpi rotulo="Degradadas" valor={resumo.degradadas} tom={resumo.degradadas > 0 ? 'warn' : undefined} /><Kpi rotulo="Latência Média" valor={resumo.latMedia !== null ? `${resumo.latMedia}ms` : '—'} /><Kpi rotulo="Enlaces PTP" valor={resumo.enlaces} />
         <div className="flex items-center gap-2 ml-auto">
           <AntenaPresets onAplicado={recarregar} />

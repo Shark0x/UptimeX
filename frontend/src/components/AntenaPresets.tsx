@@ -110,7 +110,7 @@ export function AntenaPresets({ onAplicado }: { onAplicado: () => void }) {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 mt-2 w-[22rem] max-w-[90vw] z-50 glass-panel p-3 border border-white/10 shadow-glass">
+        <div className="absolute right-0 mt-2 w-[22rem] max-w-[90vw] z-50 bg-deep-900 border border-white/10 rounded-xl shadow-glass p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="eyebrow">Presets da topologia</p>
             <button onClick={() => setAberto(false)} className="text-muted hover:text-slate-200 text-lg leading-none" aria-label="Fechar">×</button>
