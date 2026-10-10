@@ -52,8 +52,8 @@ function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista
         </button>
       </div>
       <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-        {isAdmin && (
-          <button
+        {/* Antenas: visível a todo staff; operador/visualizador veem em modo leitura */}
+        <button
             onClick={() => setVista('antenas')}
             className={`group w-9 h-9 shrink-0 rounded-full border flex items-center justify-center transition-all ${
             vista === 'antenas' || vista === 'antenas-tv'
@@ -73,7 +73,6 @@ function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista
               <path d="m8 22 4-11 4 11" />
             </svg>
           </button>
-        )}
         {isAdmin && (
           <button
             onClick={() => setVista('admin')}

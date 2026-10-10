@@ -8,6 +8,7 @@ import { AntenaLinkModal, EnlacePayload } from '../components/AntenaLinkModal';
 import { AntenaDrawer } from '../components/AntenaDrawer';
 import { AntenaPresets } from '../components/AntenaPresets';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../auth/AuthContext';
 
 type SubAba = 'topologia' | 'lista' | 'enlaces';
 
@@ -36,6 +37,10 @@ export function Antenas({ onAbrirVisualizacaoTV }: { onAbrirVisualizacaoTV?: () 
   const [linkDestinoId, setLinkDestinoId] = useState<number | null>(null);
   const [topologiaVersao, setTopologiaVersao] = useState(0);
   const toast = useToast();
+  // Visualizador = somente leitura (vê o board/TV, mas não edita). O backend já
+  // bloqueia escrita; aqui escondemos os controles de edição pra não dar 403 na cara.
+  const { usuario } = useAuth();
+  const podeEditar = usuario?.role !== 'visualizador';
 
   const recarregar = useCallback(async () => {
     try {
@@ -147,7 +152,9 @@ export function Antenas({ onAbrirVisualizacaoTV }: { onAbrirVisualizacaoTV?: () 
         <Kpi rotulo="Total Antenas" valor={resumo.total} /><Kpi rotulo="Online" valor={resumo.online} tom="online" /><Kpi rotulo="Offline" valor={resumo.offline} tom={resumo.offline > 0 ? 'offline' : undefined} /><Kpi rotulo="Degradadas" valor={resumo.degradadas} tom={resumo.degradadas > 0 ? 'warn' : undefined} /><Kpi rotulo="Latência Média" valor={resumo.latMedia !== null ? `${resumo.latMedia}ms` : '—'} /><Kpi rotulo="Enlaces PTP" valor={resumo.enlaces} />
         <div className="flex items-center gap-2 ml-auto">
           <AntenaPresets onAplicado={recarregar} />
-          <button onClick={abrirNovaAntena} className="btn-primary text-xs !py-2 !px-3.5 shadow-glow-signal">+ Nova Antena</button>
+          {podeEditar && (
+            <button onClick={abrirNovaAntena} className="btn-primary text-xs !py-2 !px-3.5 shadow-glow-signal">+ Nova Antena</button>
+          )}
         </div>
       </div>
 
@@ -174,6 +181,7 @@ export function Antenas({ onAbrirVisualizacaoTV }: { onAbrirVisualizacaoTV?: () 
               onEditarAntena={(a) => { setAntenaEditando(a); setModalAntenaAberto(true); }}
               onEditarEnlace={abrirEditarEnlace}
               recarregarSinal={topologiaVersao}
+              podeEditar={podeEditar}
             />
           </div>
         )}

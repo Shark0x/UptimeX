@@ -44,6 +44,7 @@ export function AntenaTopologia({
   onEditarAntena,
   onEditarEnlace,
   recarregarSinal,
+  podeEditar = true,
 }: {
   antenas: AntenaWireless[];
   onAbrirAntena?: (antena: AntenaWireless) => void;
@@ -52,6 +53,8 @@ export function AntenaTopologia({
   onEditarAntena?: (antena: AntenaWireless) => void;
   onEditarEnlace?: (edge: EdgeType) => void;
   recarregarSinal?: number;
+  /** Visualizador = somente leitura: sem arrastar/conectar/editar nem botões de edição. */
+  podeEditar?: boolean;
 }) {
   const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -464,6 +467,7 @@ export function AntenaTopologia({
       {/* Barra de Ferramentas */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-white/[0.08] bg-deep-900/80 backdrop-blur-md z-10">
         <div className="flex items-center gap-2 flex-wrap">
+          {podeEditar && (<>
           {onNovaAntena && (
             <button onClick={onNovaAntena} className="btn-primary text-xs !py-1.5 !px-3 flex items-center gap-1.5 shadow-glow-signal">
               <span>+ Nova Antena</span>
@@ -498,11 +502,12 @@ export function AntenaTopologia({
           >
             + Nó Decorativo
           </button>
+          </>)}
         </div>
 
         {/* Filtros e Controles de Visualização */}
         <div className="flex items-center gap-2">
-          <button
+          {podeEditar && (<button
             onClick={handleAlternarLabels}
             className={`btn-ghost text-xs !py-1.5 !px-2.5 flex items-center gap-1.5 border transition-colors ${
               ocultarLabels
@@ -527,7 +532,7 @@ export function AntenaTopologia({
               )}
             </svg>
             <span>{ocultarLabels ? 'Mostrar rótulos' : 'Ocultar rótulos'}</span>
-          </button>
+          </button>)}
 
           <span className="text-[10px] font-mono uppercase text-muted">Filtrar:</span>
           <select
@@ -566,11 +571,15 @@ export function AntenaTopologia({
             onEdgesChange={onEdgesChange}
             onEdgesDelete={onEdgesDelete}
             onNodeClick={onNodeClick}
-            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeDoubleClick={podeEditar ? onNodeDoubleClick : undefined}
             onConnect={onConnect}
             onReconnect={onReconnect}
             reconnectRadius={18}
             connectionMode={ConnectionMode.Loose}
+            nodesDraggable={podeEditar}
+            nodesConnectable={podeEditar}
+            elementsSelectable={podeEditar}
+            deleteKeyCode={podeEditar ? undefined : null}
             onMoveEnd={aoMoverCamera}
             onInit={(inst) => {
               instanciaRef.current = inst;
