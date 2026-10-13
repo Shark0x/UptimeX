@@ -118,6 +118,8 @@ export interface ResumoStatusEmpresa {
   degradados: number;
   desconhecidos: number;
   links_dedicados: number;
+  /** Cliente /30 (tem bloco dedicado /30): queda vira estado neutro, não offline. */
+  link_30: boolean;
   /** Início da queda ainda aberta mais antiga da empresa (null = nada fora) */
   offline_desde: string | null;
 }

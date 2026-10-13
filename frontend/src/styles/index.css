@@ -415,6 +415,10 @@ body {
 .marcador-offline {
   --cor-marcador: #ff2b3a;
 }
+/* Cliente /30 que bloqueia ICMP: neutro (ciano), não é queda. */
+.marcador-link30 {
+  --cor-marcador: #22d3ee;
+}
 @keyframes marcadorPisca {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }

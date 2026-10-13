@@ -20,6 +20,10 @@ types.setTypeParser(1266, manterString); // timetz
 const host = process.env.PGHOST || process.env.DB_HOST || 'localhost';
 const port = Number(process.env.PGPORT || process.env.DB_PORT) || 5432;
 const database = process.env.PGDATABASE || process.env.POSTGRES_DB || 'uptimex';
+const rlsTransactionTimeoutMs = Math.max(
+  30_000,
+  Number(process.env.PG_RLS_TRANSACTION_TIMEOUT_MS) || 4 * 60_000
+);
 
 // Pool da API HTTP: role uptimex_app (NOSUPERUSER, sujeita ao RLS por app.user_id).
 export const appPool = new Pool({
@@ -190,7 +194,7 @@ export async function withUserContext<T>(userId: number, fn: () => Promise<T>): 
  */
 export async function comContextoRls(
   userId: number,
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -202,15 +206,44 @@ export async function comContextoRls(
   }
   const store: RlsStore = { client, tail: Promise.resolve() };
   let finalizado = false;
-  const finalizar = (commit: boolean) => {
+  let timer: NodeJS.Timeout | undefined;
+
+  const limparListeners = () => {
+    if (timer) clearTimeout(timer);
+    res.off('finish', aoFinalizarResposta);
+    res.off('close', aoFecharResposta);
+    req.off('aborted', aoAbortarRequisicao);
+    client.off('error', aoErroCliente);
+  };
+
+  const finalizar = (commit: boolean, erroCliente?: Error) => {
     if (finalizado) return;
     finalizado = true;
+    limparListeners();
     store.tail
       .catch(() => undefined)
-      .then(() => client.query(commit ? 'COMMIT' : 'ROLLBACK'))
+      .then(() => erroCliente ? undefined : client.query(commit ? 'COMMIT' : 'ROLLBACK'))
       .catch((err) => console.error('[rls] falha ao finalizar transacao:', err.message))
-      .finally(() => client.release());
+      // Passar o erro remove do pool uma conexao que o PostgreSQL ja encerrou.
+      .finally(() => client.release(erroCliente));
   };
+
+  function aoFinalizarResposta() {
+    finalizar(res.statusCode < 400);
+  }
+  function aoFecharResposta() {
+    finalizar(false);
+  }
+  function aoAbortarRequisicao() {
+    finalizar(false);
+  }
+  function aoErroCliente(err: Error) {
+    // Clientes retirados do pool precisam de listener proprio. Sem ele, um
+    // encerramento administrativo/timeout emite "error" sem tratamento e pode
+    // derrubar todo o processo Node.
+    console.error('[rls] conexao da requisicao foi encerrada:', err.message);
+    finalizar(false, err);
+  }
   try {
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.user_id', String(userId)]);
@@ -218,8 +251,15 @@ export async function comContextoRls(
     client.release();
     return next(err as Error);
   }
-  res.on('finish', () => finalizar(res.statusCode < 400));
-  res.on('close', () => finalizar(false));
+  client.on('error', aoErroCliente);
+  res.once('finish', aoFinalizarResposta);
+  res.once('close', aoFecharResposta);
+  req.once('aborted', aoAbortarRequisicao);
+  timer = setTimeout(() => {
+    console.error(`[rls] transacao excedeu ${rlsTransactionTimeoutMs}ms; executando rollback`);
+    finalizar(false);
+  }, rlsTransactionTimeoutMs);
+  timer.unref();
   als.run(store, () => next());
 }
 

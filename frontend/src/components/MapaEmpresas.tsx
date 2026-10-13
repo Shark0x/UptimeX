@@ -33,13 +33,14 @@ function enquadrarNasSedes(mapa: maplibregl.Map, pontos: Empresa[]) {
   }
 }
 
-export type StatusMarcador = 'online' | 'degradado' | 'offline' | 'sem';
+export type StatusMarcador = 'online' | 'degradado' | 'offline' | 'sem' | 'link30';
 
 const ROTULO_STATUS: Record<StatusMarcador, string> = {
   offline: '🔴 queda',
   degradado: '🟡 atenção',
   online: '🟢 no ar',
   sem: 'sem monitor',
+  link30: '🔵 /30 · sem ICMP',
 };
 
 /**

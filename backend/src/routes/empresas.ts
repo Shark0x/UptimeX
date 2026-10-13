@@ -26,33 +26,43 @@ empresasRouter.get('/', async (req, res) => {
 // Degradação usa os mesmos limiares do front (150ms / 2% de perda).
 empresasRouter.get('/resumo-status', async (req, res) => {
   const escopo = filtroEmpresaSql(req.user!, 'e.id');
-  const [rows] = await pool.query(`
-    SELECT
-      e.id,
-      e.nome,
-      e.foto_url,
-      e.endereco,
-      COUNT(d.id) AS total,
-      SUM(CASE WHEN d.status_atual = 'offline' THEN 1 ELSE 0 END) AS offline,
-      SUM(CASE WHEN d.status_atual = 'online'
-               AND (d.latencia_ms >= 150 OR d.perda_pct >= 2) THEN 1 ELSE 0 END) AS degradados,
-      SUM(CASE WHEN d.status_atual = 'online'
-               AND NOT (COALESCE(d.latencia_ms, 0) >= 150 OR COALESCE(d.perda_pct, 0) >= 2) THEN 1 ELSE 0 END) AS online,
-      SUM(CASE WHEN d.status_atual = 'desconhecido' THEN 1 ELSE 0 END) AS desconhecidos,
-      (SELECT COUNT(*) FROM links_dedicados l WHERE l.empresa_id = e.id) AS links_dedicados,
-      -- Desde quando a empresa está fora: início da queda ainda aberta mais antiga.
-      -- O Mapa TV usa pra "aposentar" o rótulo do nome após X minutos de queda.
-      (SELECT MIN(se.inicio) FROM status_eventos se
-        JOIN dispositivos d2 ON d2.id = se.dispositivo_id
-        WHERE d2.empresa_id = e.id AND d2.ativo = TRUE
-          AND se.status = 'offline' AND se.fim IS NULL) AS offline_desde
-    FROM empresas e
-    LEFT JOIN dispositivos d ON d.empresa_id = e.id AND d.ativo = TRUE
-    WHERE ${escopo.sql}
-    GROUP BY e.id, e.nome, e.foto_url, e.endereco
-    ORDER BY e.nome
-  `, escopo.params);
-  res.json(rows);
+  try {
+    const [rows] = await pool.query(`
+      SELECT
+        e.id,
+        e.nome,
+        e.foto_url,
+        e.endereco,
+        COUNT(d.id) AS total,
+        -- /30: se empresa tem link dedicado /30, offline não conta (estado neutro)
+        SUM(CASE
+          WHEN EXISTS(SELECT 1 FROM links_dedicados l30 WHERE l30.empresa_id = e.id AND (l30.bloco::text LIKE '%/30' OR masklen(l30.bloco) = 30))
+          THEN 0
+          WHEN d.status_atual = 'offline' THEN 1
+          ELSE 0
+        END) AS offline,
+        SUM(CASE WHEN d.status_atual = 'online'
+                 AND (d.latencia_ms >= 150 OR d.perda_pct >= 2) THEN 1 ELSE 0 END) AS degradados,
+        SUM(CASE WHEN d.status_atual = 'online'
+                 AND NOT (COALESCE(d.latencia_ms, 0) >= 150 OR COALESCE(d.perda_pct, 0) >= 2) THEN 1 ELSE 0 END) AS online,
+        SUM(CASE WHEN d.status_atual = 'desconhecido' THEN 1 ELSE 0 END) AS desconhecidos,
+        (SELECT COUNT(*) FROM links_dedicados l WHERE l.empresa_id = e.id) AS links_dedicados,
+        EXISTS(SELECT 1 FROM links_dedicados l30 WHERE l30.empresa_id = e.id AND (l30.bloco::text LIKE '%/30' OR masklen(l30.bloco) = 30)) AS link_30,
+        (SELECT MIN(se.inicio) FROM status_eventos se
+          JOIN dispositivos d2 ON d2.id = se.dispositivo_id
+          WHERE d2.empresa_id = e.id AND d2.ativo = TRUE
+            AND se.status = 'offline' AND se.fim IS NULL) AS offline_desde
+      FROM empresas e
+      LEFT JOIN dispositivos d ON d.empresa_id = e.id AND d.ativo = TRUE
+      WHERE ${escopo.sql}
+      GROUP BY e.id, e.nome, e.foto_url, e.endereco
+      ORDER BY e.nome
+    `, escopo.params);
+    res.json(rows);
+  } catch (err: any) {
+    console.error('[resumo-status] erro:', err.message, err.code);
+    throw err;
+  }
 });
 
 empresasRouter.get('/:id/ping-history', async (req, res) => {

@@ -73,6 +73,9 @@ services:
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-uptimex}
+      # Guardiao da transacao RLS por requisicao. Fica abaixo do timeout de 5 min
+      # configurado no PostgreSQL para permitir rollback/liberacao controlados.
+      PG_RLS_TRANSACTION_TIMEOUT_MS: ${PG_RLS_TRANSACTION_TIMEOUT_MS:-240000}
       POSTGRES_APP_USER: ${POSTGRES_APP_USER:-uptimex_app}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no arquivo .env}
       POSTGRES_WORKER_USER: ${POSTGRES_WORKER_USER:-uptimex_worker}

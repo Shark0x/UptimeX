@@ -9,7 +9,7 @@ const INTERVALO_ATUALIZACAO_MS = 15000;
 const TILES_POR_PAGINA = 30;
 
 type StatusEmpresa = 'offline' | 'degradado' | 'desconhecido' | 'online' | 'vazio';
-type FiltroStatus = 'todos' | 'offline' | 'degradado' | 'online' | 'sem-monitor';
+type FiltroStatus = 'todos' | 'offline' | 'degradado' | 'online' | 'sem-monitor' | '/30';
 type EmpresaClassificada = { e: ResumoStatusEmpresa; status: StatusEmpresa };
 
 const ORDEM: Record<StatusEmpresa, number> = {
@@ -390,8 +390,15 @@ function CartaoEmpresa({ item, agora, onSelecionar }: { item: EmpresaClassificad
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <StatusBadge status={status} />
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <StatusBadge status={status} />
+          {e.link_30 && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-accent-500/30 bg-accent-600/15 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.13em] text-accent-400">
+              /30
+            </span>
+          )}
+        </div>
         {queda && <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--badge-offline-fg))]">{queda}</span>}
       </div>
 
@@ -479,6 +486,9 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
             const porDegradacao = Number(b.e.degradados) - Number(a.e.degradados);
             if (porDegradacao !== 0) return porDegradacao;
           }
+          const a_eh_30 = Boolean(a.e.link_30);
+          const b_eh_30 = Boolean(b.e.link_30);
+          if (a_eh_30 !== b_eh_30) return a_eh_30 ? 1 : -1;
           return a.e.nome.localeCompare(b.e.nome, 'pt-BR');
         }),
     [empresas]
@@ -494,6 +504,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
       enlacesRespondendo: 0,
       dispositivosOffline: 0,
       dispositivosDegradados: 0,
+      linhas30: 0,
     };
 
     ordenadas.forEach(({ e, status }) => {
@@ -502,6 +513,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
       else if (status === 'online') base.online++;
       else base.semMonitor++;
 
+      if (e.link_30) base.linhas30++;
       base.enlacesTotal += Number(e.total);
       base.enlacesRespondendo += Number(e.online) + Number(e.degradados);
       base.dispositivosOffline += Number(e.offline);
@@ -530,6 +542,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
     { valor: 'degradado', rotulo: 'Atenção', total: resumo.degradado },
     { valor: 'online', rotulo: 'No ar', total: resumo.online },
     { valor: 'sem-monitor', rotulo: 'Sem sinal', total: resumo.semMonitor },
+    { valor: '/30', rotulo: '/30', total: resumo.linhas30 },
   ];
 
   const filtradas = useMemo(
@@ -538,6 +551,7 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
         const correspondeBusca = combinaBusca(`${e.nome} ${e.endereco || ''}`, busca);
         const correspondeFiltro =
           filtro === 'todos' ||
+          filtro === '/30' ? e.link_30 :
           status === filtro ||
           (filtro === 'sem-monitor' && (status === 'desconhecido' || status === 'vazio'));
         return correspondeBusca && correspondeFiltro;

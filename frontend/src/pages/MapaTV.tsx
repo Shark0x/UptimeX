@@ -24,6 +24,7 @@ const TIMEOUT_ROTULO_MIN = 4 * 60;
 const ORDEM_STATUS: Record<StatusMarcador, number> = {
   offline: 0,
   degradado: 1,
+  link30: 1.5,
   sem: 2,
   online: 3,
 };
@@ -34,6 +35,7 @@ interface ResumoEmpresa {
   offline: number;
   degradados: number;
   links: number;
+  link30: boolean;
   offlineDesde: string | null;
 }
 
@@ -47,6 +49,7 @@ function indexarResumos(resumoLista: ResumoStatusEmpresa[]) {
         offline: Number(r.offline),
         degradados: Number(r.degradados),
         links: Number(r.links_dedicados),
+        link30: !!r.link_30,
         offlineDesde: r.offline_desde ?? null,
       },
     ])
@@ -254,26 +257,31 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const statusPorEmpresa = useMemo(() => {
     const mapa: Record<number, StatusMarcador> = {};
     Object.entries(resumos).forEach(([id, r]) => {
+      // Cliente /30 que não responde ICMP (nenhum device online): estado NEUTRO, não offline.
       mapa[Number(id)] =
-        r.offline > 0 ? 'offline' : r.degradados > 0 ? 'degradado' : r.online > 0 ? 'online' : 'sem';
+        r.offline > 0
+          ? (r.link30 && r.online === 0 ? 'link30' : 'offline')
+          : r.degradados > 0 ? 'degradado' : r.online > 0 ? 'online' : 'sem';
     });
     return mapa;
   }, [resumos]);
 
   const veredito = useMemo(() => {
-    let comQueda = 0, comAtencao = 0, ok = 0;
+    let comQueda = 0, comAtencao = 0, ok = 0, link30 = 0;
     let disp = 0, dispNoAr = 0, dispOffline = 0;
     empresas.forEach((e) => {
       const r = resumos[e.id];
       if (!r) return;
       disp += r.total;
+      // /30 sem resposta ICMP: NEUTRO (contado à parte) — não entra em queda/offline.
+      if (r.link30 && r.offline > 0 && r.online === 0) { link30++; return; }
       dispNoAr += r.online + r.degradados;
       dispOffline += r.offline;
       if (r.offline > 0) comQueda++;
       else if (r.degradados > 0) comAtencao++;
       else if (r.online > 0) ok++;
     });
-    return { comQueda, comAtencao, ok, disp, dispNoAr, dispOffline };
+    return { comQueda, comAtencao, ok, link30, disp, dispNoAr, dispOffline };
   }, [empresas, resumos]);
 
   const estado: 'offline' | 'degradado' | 'online' | 'vazio' =
@@ -303,7 +311,7 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
       empresas.filter(
         (e) =>
           (!soOffline || statusPorEmpresa[e.id] === 'offline') &&
-          (!soDedicado || (resumos[e.id]?.links ?? 0) > 0)
+          (!soDedicado || !!resumos[e.id]?.link30)
       ),
     [empresas, statusPorEmpresa, resumos, soOffline, soDedicado]
   );
@@ -407,7 +415,8 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
   const quedasRecentes = useMemo(() => {
     const ids = new Set<number>();
     Object.entries(resumos).forEach(([id, r]) => {
-      if (r.offline <= 0) return;
+      // /30 neutro não "pisca" nem ganha rótulo vermelho no mapa.
+      if (r.offline <= 0 || (r.link30 && r.online === 0)) return;
       // Sem data de início (caso raro), trata como recente pra não silenciar queda nova
       const min = r.offlineDesde ? minutoAtual - Math.floor(new Date(r.offlineDesde).getTime() / 60000) : 0;
       if (min < TIMEOUT_ROTULO_MIN) ids.add(Number(id));
@@ -442,6 +451,7 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
           <Placar valor={veredito.ok} rotulo="no ar" tom="online" />
           <Placar valor={veredito.comAtencao} rotulo="atenção" tom={veredito.comAtencao > 0 ? 'warn' : 'muted'} />
           <Placar valor={veredito.comQueda} rotulo="quedas" tom={veredito.comQueda > 0 ? 'offline' : 'muted'} />
+          <Placar valor={veredito.link30} rotulo="/30" tom="muted" />
           <div className="h-10 w-px bg-white/10 hidden sm:block" />
           <Placar valor={veredito.disp} rotulo="dispositivos" />
         </div>
@@ -616,7 +626,7 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
             <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/[0.05]">
               {radarVisivel.map(({ empresa, status, online, offline, total, desde }) => {
                 const quedaRecente = status === 'offline' && quedasRecentes.has(empresa.id);
-                const cor = status === 'offline' ? 'bg-offline' : status === 'degradado' ? 'bg-warn' : status === 'online' ? 'bg-online' : 'bg-muted';
+                const cor = status === 'offline' ? 'bg-offline' : status === 'degradado' ? 'bg-warn' : status === 'online' ? 'bg-online' : status === 'link30' ? 'bg-cyan-400' : 'bg-muted';
                 return (
                   <button
                     key={empresa.id}
@@ -637,8 +647,8 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
                       </span>
                     </span>
                     <span className="text-right shrink-0 mt-0.5">
-                      <span className={`block text-[11px] font-mono tabular-nums ${status === 'offline' ? 'text-offline' : status === 'degradado' ? 'text-warn' : status === 'online' ? 'text-online' : 'text-muted'}`}>
-                        {status === 'offline' ? `${offline}/${total} fora` : total > 0 ? `${online}/${total} no ar` : 'sem monitor'}
+                      <span className={`block text-[11px] font-mono tabular-nums ${status === 'offline' ? 'text-offline' : status === 'degradado' ? 'text-warn' : status === 'online' ? 'text-online' : status === 'link30' ? 'text-cyan-400' : 'text-muted'}`}>
+                        {status === 'offline' ? `${offline}/${total} fora` : status === 'link30' ? '/30 · sem ICMP' : total > 0 ? `${online}/${total} no ar` : 'sem monitor'}
                       </span>
                       {status === 'offline' && desde && (
                         <span className="block text-[10px] font-mono text-muted tabular-nums">{tempoDesde(desde, agora)}</span>

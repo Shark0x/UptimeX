@@ -30,6 +30,7 @@ interface ResumoEmpresa {
   offline: number;
   degradados: number;
   links: number;
+  eh_30: boolean;
 }
 
 function indexarResumos(resumoLista: ResumoStatusEmpresa[]) {
@@ -42,6 +43,7 @@ function indexarResumos(resumoLista: ResumoStatusEmpresa[]) {
         offline: Number(r.offline),
         degradados: Number(r.degradados),
         links: Number(r.links_dedicados),
+        eh_30: Boolean(r.link_30),
       },
     ])
   ) as Record<number, ResumoEmpresa>;
@@ -96,7 +98,7 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
   const [empresaRemovendo, setEmpresaRemovendo] = useState<Empresa | null>(null);
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
-  const [soLinkDedicado, setSoLinkDedicado] = useState(false);
+  const [so30, setSo30] = useState(false);
   const [alturaMapa, setAlturaMapa] = useState(alturaMapaSalva);
 
   // Arraste da alça inferior do mapa: ajusta a altura ao vivo e salva ao soltar.
@@ -161,11 +163,18 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
   );
 
   const filtradas = useMemo(
-    () =>
-      empresas.filter(
-        (e) => combinaBusca(e.nome, busca) && (!soLinkDedicado || (resumos[e.id]?.links ?? 0) > 0)
-      ),
-    [empresas, busca, soLinkDedicado, resumos]
+    () => {
+      let lista = empresas.filter(
+        (e) => combinaBusca(e.nome, busca) && (!so30 || resumos[e.id]?.eh_30)
+      );
+      return lista.sort((a, b) => {
+        const a_eh_30 = resumos[a.id]?.eh_30 ?? false;
+        const b_eh_30 = resumos[b.id]?.eh_30 ?? false;
+        if (a_eh_30 === b_eh_30) return a.nome.localeCompare(b.nome);
+        return a_eh_30 ? 1 : -1;
+      });
+    },
+    [empresas, busca, so30, resumos]
   );
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / EMPRESAS_POR_PAGINA));
   const paginaSegura = Math.min(pagina, totalPaginas);
@@ -255,23 +264,21 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
             />
             <button
               onClick={() => {
-                setSoLinkDedicado((v) => !v);
+                setSo30((v) => !v);
                 setPagina(1);
               }}
-              aria-pressed={soLinkDedicado}
+              aria-pressed={so30}
               className={`flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border transition-all duration-150
-                ${soLinkDedicado
-                  ? 'border-signal-500/60 text-signal-400 bg-signal-600/10 shadow-glow-signal'
+                ${so30
+                  ? 'border-accent-500/60 text-accent-400 bg-accent-600/10 shadow-glow-accent'
                   : 'border-white/10 text-muted hover:text-slate-100 hover:border-white/25'}`}
             >
               <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                <path d="M6.5 9.5 L9.5 6.5 M5 11 l-1.8 1.8 a2.4 2.4 0 0 1 -3.4 -3.4 z" transform="translate(1.6 -1.2)" />
-                <path d="M9.3 3.2 l1.8 -1.8 a2.4 2.4 0 0 1 3.4 3.4 l-1.8 1.8" />
-                <path d="M6.7 12.8 l-1.8 1.8 a2.4 2.4 0 0 1 -3.4 -3.4 l1.8 -1.8" />
+                <path d="M2 8h12M8 2v12" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Link dedicado
+              /30
             </button>
-            {(busca.trim() !== '' || soLinkDedicado) && (
+            {(busca.trim() !== '' || so30) && (
               <span className="text-[11px] font-mono text-muted whitespace-nowrap">
                 {filtradas.length} de {empresas.length}
               </span>
@@ -289,6 +296,11 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
                   onMouseLeave={() => setFoco(null)}
                   className="group glass-panel-interactive hud-corners p-4 text-left flex flex-col gap-3 relative"
                 >
+                  {resumos[e.id]?.eh_30 && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-accent-600/20 border border-accent-500/30 text-accent-400">
+                      /30
+                    </span>
+                  )}
                   {isAdmin && (
                     <span
                       role="button"
@@ -352,9 +364,9 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
               <div className="col-span-full glass-panel p-8 text-center">
                 <p className="text-slate-300 font-display">Nenhuma empresa encontrada.</p>
                 <p className="text-muted text-sm mt-1">
-                  {soLinkDedicado && busca.trim() === ''
+                  {so30 && busca.trim() === ''
                     ? 'Nenhuma empresa tem bloco registrado na aba Link Dedicado ainda.'
-                    : `Nada com "${busca.trim()}" no nome${soLinkDedicado ? ' entre as empresas com link dedicado' : ''} — confira a grafia.`}
+                    : `Nada com "${busca.trim()}" no nome${so30 ? ' entre as empresas com link dedicado' : ''} — confira a grafia.`}
                 </p>
               </div>
             )}
@@ -495,7 +507,7 @@ function NovaEmpresaModal({ onClose, onCriada }: { onClose: () => void; onCriada
     try {
       const resultado = await geocodificarEndereco(endereco.trim());
       if (resultado) setGeo(resultado);
-      else setGeoErro('Endereço não encontrado. Tente cidade e estado, ex: "Sorocaba, SP".');
+      else setGeoErro('Endereço não encontrado. Tente: CEP (ex: "35160-070"), rua + cidade (ex: "Rua Beta, Ipatinga, MG"), ou cidade + estado (ex: "Sorocaba, SP").');
     } catch {
       setGeoErro('Falha ao consultar o serviço de mapas.');
     } finally {
@@ -550,7 +562,7 @@ function NovaEmpresaModal({ onClose, onCriada }: { onClose: () => void; onCriada
                   setGeoErro('');
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && localizar()}
-                placeholder="Rua, cidade, estado"
+                placeholder="CEP (35160-070) ou endereço (Rua, cidade)"
                 className="input"
                 maxLength={255}
               />
