@@ -23,9 +23,13 @@ function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; t
   );
 }
 
-export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa }: { empresa: Empresa; aoVoltar: () => void; onVerNoMapa?: () => void }) {
+export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAbaChange }: { empresa: Empresa; aoVoltar: () => void; onVerNoMapa?: () => void; abaInicial?: Aba; onAbaChange?: (aba: Aba) => void }) {
   const { isAdmin } = useAuth();
-  const [aba, setAba] = useState<Aba>('status');
+  const [aba, setAbaState] = useState<Aba>(abaInicial ?? 'status');
+  function setAba(nova: Aba) {
+    setAbaState(nova);
+    onAbaChange?.(nova);
+  }
   const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
   const [formAberto, setFormAberto] = useState(false);
   const [dispositivoEditando, setDispositivoEditando] = useState<Dispositivo | null>(null);

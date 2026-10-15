@@ -11,8 +11,8 @@ import { PainelMacro } from './pages/PainelMacro';
 import { Admin } from './pages/Admin';
 import { MapaTV } from './pages/MapaTV';
 import { PerfilMenu } from './components/PerfilMenu';
-import { parseUrl, syncUrlToState, type Vista, type Periodo } from './routing';
-import type { DashboardRange } from './api';
+import { parseUrl, syncUrlToState, type Vista, type Periodo, type SubAba } from './routing';
+import { api, type DashboardRange } from './api';
 
 // Lazy: React Flow (mapa de topologia) só entra no bundle quando a aba é aberta
 const Antenas = lazy(() => import('./pages/Antenas').then((m) => ({ default: m.Antenas })));
@@ -152,17 +152,52 @@ export default function App() {
     const route = parseUrl();
     return route.periodo ?? '30d';
   });
+  // Deep link /empresas/ID/aba: id + aba alvo pra hidratar o painel após refresh.
+  const [empresaIdAlvo, setEmpresaIdAlvo] = useState<number | undefined>(() => parseUrl().empresaId);
+  const [subAbaEmpresa, setSubAbaEmpresa] = useState<SubAba>(() => parseUrl().subAba ?? 'status');
+
+  // Hidrata empresaAtiva quando a URL aponta pra uma empresa que ainda não está
+  // em memória (refresh/deep link direto em /empresas/ID/aba). Só roda após o
+  // login estar resolvido — senão listarEmpresas() tomaria 401 no boot.
+  useEffect(() => {
+    if (!usuario) return;
+    if (vista !== 'empresa' || !empresaIdAlvo) return;
+    if (empresaAtiva && Number(empresaAtiva.id) === empresaIdAlvo) return;
+    let cancelado = false;
+    api
+      .listarEmpresas()
+      .then((lista) => {
+        if (cancelado) return;
+        const alvo = lista.find((e) => Number(e.id) === empresaIdAlvo);
+        if (alvo) {
+          setEmpresaAtiva(alvo);
+          setOrigemEmpresa('dashboard');
+        } else {
+          // Empresa inexistente ou sem acesso: volta pra Home.
+          setVista('home');
+        }
+      })
+      .catch(() => {
+        /* Falha transitória: mantém a tela de carregamento (não redireciona). */
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [usuario, vista, empresaIdAlvo, empresaAtiva]);
 
   // Sincronizar mudanças de vista com URL (App é a única fonte da verdade do URL)
   useEffect(() => {
     const rota = rotaFromVista(vista);
+    // empresaId: usa o da empresa carregada ou, enquanto hidrata, o alvo da URL
+    const empresaId = empresaAtiva?.id != null ? Number(empresaAtiva.id) : empresaIdAlvo;
     syncUrlToState({
       vista: rota,
-      empresaId: empresaAtiva?.id,
+      empresaId,
+      subAba: rota === 'empresa' ? subAbaEmpresa : undefined,
       focarEmpresa: focarEmpresaMapa,
       periodo: rota === 'home' ? periodoHome : undefined,
     });
-  }, [vista, empresaAtiva?.id, focarEmpresaMapa, periodoHome]);
+  }, [vista, empresaAtiva?.id, empresaIdAlvo, subAbaEmpresa, focarEmpresaMapa, periodoHome]);
 
   // Listener para botão voltar/avançar do navegador
   useEffect(() => {
@@ -172,6 +207,10 @@ export default function App() {
       setVista(novaVista);
       setFocarEmpresaMapa(route.focarEmpresa);
       if (route.vista === 'home') setPeriodoHome(route.periodo ?? '30d');
+      if (route.vista === 'empresa') {
+        setEmpresaIdAlvo(route.empresaId);
+        setSubAbaEmpresa(route.subAba ?? 'status');
+      }
     }
 
     window.addEventListener('popstate', handlePopstate);
@@ -220,6 +259,8 @@ export default function App() {
   function selecionarEmpresa(e: Empresa) {
     setOrigemEmpresa(vista === 'macro' ? 'macro' : vista === 'home' ? 'home' : 'dashboard');
     setEmpresaAtiva(e);
+    setEmpresaIdAlvo(Number(e.id));
+    setSubAbaEmpresa('status');
     irPara('empresa');
   }
 
@@ -252,10 +293,18 @@ export default function App() {
           )}
           {vista === 'empresa' && empresaAtiva && (
             <EmpresaPainel
+              key={empresaAtiva.id}
               empresa={empresaAtiva}
               aoVoltar={() => irPara(origemEmpresa)}
-              onVerNoMapa={() => verNoMapa(empresaAtiva.id)}
+              onVerNoMapa={() => verNoMapa(Number(empresaAtiva.id))}
+              abaInicial={subAbaEmpresa}
+              onAbaChange={(a) => setSubAbaEmpresa(a)}
             />
+          )}
+          {vista === 'empresa' && !empresaAtiva && (
+            <div className="h-full flex items-center justify-center text-sm font-mono text-muted animate-pulse">
+              Carregando empresa…
+            </div>
           )}
         </div>
       </div>
