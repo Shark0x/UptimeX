@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { Empresa } from './api';
 import { useAuth } from './auth/AuthContext';
 import { LogoUptimeXNav } from './components/LogoUptimeX';
@@ -10,17 +10,44 @@ import { PainelMacro } from './pages/PainelMacro';
 import { Admin } from './pages/Admin';
 import { MapaTV } from './pages/MapaTV';
 import { PerfilMenu } from './components/PerfilMenu';
+import { parseUrl, syncUrlToState, getCurrentState, type Vista } from './routing';
 
 // Lazy: React Flow (mapa de topologia) só entra no bundle quando a aba é aberta
 const Antenas = lazy(() => import('./pages/Antenas').then((m) => ({ default: m.Antenas })));
 const AntenaMapaTV = lazy(() => import('./pages/AntenaMapaTV').then((m) => ({ default: m.AntenaMapaTV })));
 
-type Vista = 'dashboard' | 'macro' | 'tv' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
+// Mapa vista de routing para vistas internas legadas (retrocompatibilidade)
+type VistaInterna = 'dashboard' | 'macro' | 'tv' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
+function vistaFromRoute(rota: Vista): VistaInterna {
+  switch (rota) {
+    case 'home': return 'macro';
+    case 'empresas': return 'dashboard';
+    case 'mapa': return 'tv';
+    case 'empresa': return 'empresa';
+    case 'antenas': return 'antenas';
+    case 'antenas-tv': return 'antenas-tv';
+    case 'admin': return 'admin';
+    default: return 'macro';
+  }
+}
+
+function rotaFromVista(vista: VistaInterna): Vista {
+  switch (vista) {
+    case 'macro': return 'home';
+    case 'dashboard': return 'empresas';
+    case 'tv': return 'mapa';
+    case 'empresa': return 'empresa';
+    case 'antenas': return 'antenas';
+    case 'antenas-tv': return 'antenas-tv';
+    case 'admin': return 'admin';
+    default: return 'home';
+  }
+}
 
 // Profundidade de cada vista: avançar entra da direita, voltar entra da esquerda
-const PROFUNDIDADE: Record<Vista, number> = { dashboard: 0, macro: 0, tv: 0, antenas: 0, 'antenas-tv': 0, admin: 1, empresa: 1 };
+const PROFUNDIDADE: Record<VistaInterna, number> = { dashboard: 0, macro: 0, tv: 0, antenas: 0, 'antenas-tv': 0, admin: 1, empresa: 1 };
 
-function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista) => void }) {
+function BarraNavegacao({ vista, setVista }: { vista: VistaInterna; setVista: (v: VistaInterna) => void }) {
   const { isAdmin, logout } = useAuth();
   return (
     <header className="glass-panel relative z-50 flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 sm:py-3 mb-4 sm:mb-6">
@@ -99,13 +126,46 @@ function BarraNavegacao({ vista, setVista }: { vista: Vista; setVista: (v: Vista
 
 export default function App() {
   const { usuario } = useAuth();
-  const [vista, setVista] = useState<Vista>('dashboard');
+  const [vista, setVista] = useState<VistaInterna>(() => {
+    const route = parseUrl();
+    return vistaFromRoute(route.vista);
+  });
   const [direcao, setDirecao] = useState<'avante' | 'volta'>('avante');
   const [empresaAtiva, setEmpresaAtiva] = useState<Empresa | null>(null);
-  // De onde a empresa foi aberta, pra "voltar" retornar à origem (painel ou macro)
-  const [origemEmpresa, setOrigemEmpresa] = useState<Vista>('dashboard');
+  const [origemEmpresa, setOrigemEmpresa] = useState<VistaInterna>('dashboard');
+  const [focarEmpresaMapa, setFocarEmpresaMapa] = useState<number | undefined>(() => {
+    const route = parseUrl();
+    return route.focarEmpresa;
+  });
 
-  function irPara(destino: Vista) {
+  // Sincronizar mudanças de vista com URL
+  useEffect(() => {
+    const rota = rotaFromVista(vista);
+    syncUrlToState({
+      vista: rota,
+      empresaId: empresaAtiva?.id,
+      focarEmpresa: focarEmpresaMapa,
+    });
+  }, [vista, empresaAtiva?.id, focarEmpresaMapa]);
+
+  // Listener para botão voltar/avançar do navegador
+  useEffect(() => {
+    function handlePopstate() {
+      const route = parseUrl();
+      const novaVista = vistaFromRoute(route.vista);
+      setVista(novaVista);
+      setFocarEmpresaMapa(route.focarEmpresa);
+
+      if (route.vista === 'empresa' && route.empresaId) {
+        // TODO: buscar empresa pelo ID se não estiver em cache
+      }
+    }
+
+    window.addEventListener('popstate', handlePopstate);
+    return () => window.removeEventListener('popstate', handlePopstate);
+  }, []);
+
+  function irPara(destino: VistaInterna) {
     setDirecao(PROFUNDIDADE[destino] >= PROFUNDIDADE[vista] ? 'avante' : 'volta');
     setVista(destino);
   }
@@ -118,10 +178,15 @@ export default function App() {
     return (
       <div className="tema-escuro-fixo">
         <MapaTV
-          onSair={() => setVista('dashboard')}
+          focarEmpresaId={focarEmpresaMapa}
+          onSair={() => {
+            setFocarEmpresaMapa(undefined);
+            setVista('dashboard');
+          }}
           onAbrirEmpresa={(e) => {
             setOrigemEmpresa('tv');
             setEmpresaAtiva(e);
+            setFocarEmpresaMapa(undefined);
             irPara('empresa');
           }}
         />

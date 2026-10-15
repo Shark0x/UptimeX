@@ -116,7 +116,7 @@ function ItemLegenda({ classe, texto }: { classe: string; texto: string }) {
  * Atualiza sozinho a cada 15s; o botão "Tela cheia" usa a Fullscreen API pra
  * sumir com a barra do navegador.
  */
-export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrirEmpresa: (empresa: Empresa) => void }) {
+export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () => void; onAbrirEmpresa: (empresa: Empresa) => void; focarEmpresaId?: number }) {
   const [empresas, setEmpresas] = useState<Empresa[]>(() => empresasEmCache() ?? []);
   const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>(() => indexarResumos(resumosEmCache() ?? []));
   const [atualizadoEm, setAtualizadoEm] = useState<number>(Date.now());
@@ -511,7 +511,13 @@ export function MapaTV({ onSair, onAbrirEmpresa }: { onSair: () => void; onAbrir
       <div ref={areaRef} className="flex-1 min-h-0 relative">
         <MapaEmpresas
           empresas={empresasVisiveis}
-          foco={null}
+          foco={
+            focarEmpresaId
+              ? (empresas.find((e) => e.id === focarEmpresaId) as
+                  | (Empresa & { latitude: number; longitude: number })
+                  | undefined) || null
+              : null
+          }
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}
