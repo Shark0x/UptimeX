@@ -316,6 +316,24 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
     [empresas, statusPorEmpresa, resumos, soOffline, soDedicado]
   );
 
+  // Empresa alvo do deep link /mapa?empresa=ID: resolve o foco (com coords) ou
+  // sinaliza que a sede ainda não tem localização cadastrada (aviso claro).
+  const empresaFocada = useMemo(
+    // e.id vem como string do backend; focarEmpresaId é number (parseInt na rota).
+    () => (focarEmpresaId ? empresas.find((e) => Number(e.id) === focarEmpresaId) ?? null : null),
+    [empresas, focarEmpresaId]
+  );
+  const focoCoords = useMemo(
+    () =>
+      empresaFocada && empresaFocada.latitude != null && empresaFocada.longitude != null
+        ? { latitude: Number(empresaFocada.latitude), longitude: Number(empresaFocada.longitude) }
+        : null,
+    [empresaFocada]
+  );
+  // Aviso: deep link apontou pra uma empresa carregada, mas sem coordenadas.
+  const focoSemCoords = !!(focarEmpresaId && empresaFocada && !focoCoords);
+  const [avisoFocoFechado, setAvisoFocoFechado] = useState(false);
+
   // Radar lateral: problemas sempre sobem. Quando o socket muda um status,
   // carregar() atualiza os resumos e esta ordenação reposiciona a empresa.
   const empresasOrdenadas = useMemo(
@@ -511,13 +529,7 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
       <div ref={areaRef} className="flex-1 min-h-0 relative">
         <MapaEmpresas
           empresas={empresasVisiveis}
-          foco={
-            focarEmpresaId
-              ? (empresas.find((e) => e.id === focarEmpresaId) as
-                  | (Empresa & { latitude: number; longitude: number })
-                  | undefined) || null
-              : null
-          }
+          foco={focoCoords}
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}
@@ -677,6 +689,38 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
                 {buscaRadar.trim() ? `${radarVisivel.length} de ${empresasOrdenadas.length}` : empresasOrdenadas.length}
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Deep link /mapa?empresa=ID apontou pra uma sede sem localização:
+            orienta claramente em vez de focar num ponto inexistente. */}
+        {focoSemCoords && empresaFocada && !avisoFocoFechado && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] glass-panel border-warn/50 px-5 py-3 flex items-start gap-3 max-w-md animate-fade-up">
+            <svg className="w-5 h-5 shrink-0 text-warn mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div className="leading-tight min-w-0">
+              <p className="font-display font-semibold text-slate-100">
+                {empresaFocada.nome} <span className="text-warn">— sem localização no mapa</span>
+              </p>
+              <p className="text-[11px] font-mono text-muted mt-1">
+                {empresaFocada.endereco
+                  ? `Endereço conhecido: ${empresaFocada.endereco}`
+                  : 'Nenhum endereço cadastrado.'}
+              </p>
+              <p className="text-[11px] font-mono text-muted mt-1.5">
+                Cadastre a localização da empresa (aba Empresas) para fixá-la no mapa.
+              </p>
+            </div>
+            <button
+              onClick={() => setAvisoFocoFechado(true)}
+              className="w-6 h-6 shrink-0 rounded-md text-muted hover:text-slate-100 hover:bg-white/10 transition-colors"
+              aria-label="Fechar aviso"
+            >
+              ×
+            </button>
           </div>
         )}
 
