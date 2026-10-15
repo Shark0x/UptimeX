@@ -1,14 +1,20 @@
 // Roteamento leve baseado em History API + URLSearchParams
 // Sem dependências externas, apenas sincronização URL ↔ estado
 
-export type Vista = 'home' | 'empresas' | 'mapa' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
+export type Vista = 'home' | 'macro' | 'empresas' | 'mapa' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
 export type SubAba = 'status' | 'topologia' | 'links' | 'historico';
+export type Periodo = '7d' | '30d' | '90d';
 
 export interface RouteState {
   vista: Vista;
   empresaId?: number;
   subAba?: SubAba;
   focarEmpresa?: number; // Para /mapa?empresa=ID
+  periodo?: Periodo; // Para /?periodo=30d (filtro da Home)
+}
+
+function parsePeriodo(valor: string | null): Periodo | undefined {
+  return valor === '7d' || valor === '30d' || valor === '90d' ? valor : undefined;
 }
 
 // Parse URL para obter RouteState
@@ -22,9 +28,14 @@ export function parseUrl(): RouteState {
     return { vista: 'mapa' };
   }
 
-  // Root → home (será macro, mas preparado para futura Home)
+  // Root → home. Aceita ?periodo=7d|30d|90d (filtro do painel).
   if (path === '/' || path === '') {
-    return { vista: 'home' };
+    return { vista: 'home', periodo: parsePeriodo(search.get('periodo')) };
+  }
+
+  // /macro → visão macro consolidada (PainelMacro)
+  if (path === '/macro') {
+    return { vista: 'macro' };
   }
 
   // /empresas → dashboard (configuração)
@@ -72,7 +83,9 @@ export function parseUrl(): RouteState {
 export function buildUrl(state: RouteState): string {
   switch (state.vista) {
     case 'home':
-      return '/';
+      return state.periodo ? `/?periodo=${state.periodo}` : '/';
+    case 'macro':
+      return '/macro';
     case 'empresas':
       return '/empresas';
     case 'mapa':

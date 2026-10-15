@@ -313,7 +313,60 @@ export interface AcessoItem {
   timestamp: string;
 }
 
+// -------- Dashboard agregado (Home macro) --------
+export type DashboardRange = '7d' | '30d' | '90d';
+
+export interface DashboardKpis {
+  totalEmpresas: number;
+  online: number;
+  degradadas: number;
+  offline: number;
+  incidentesAbertos: number;
+}
+
+export interface QuedaPorEmpresa {
+  empresaId: number;
+  nome: string;
+  quedas: number;
+  downtimeSeg: number;
+}
+
+export interface QuedaNoTempo {
+  dia: string;
+  quedas: number;
+  empresasAfetadas: number;
+}
+
+export interface RankingUptime {
+  empresaId: number;
+  nome: string;
+  uptimePct: number | null;
+  downtimeSeg: number;
+}
+
+export interface IncidenteRecente {
+  empresaId: number;
+  empresaNome: string;
+  dispositivo: string;
+  ip: string;
+  inicio: string;
+  fim: string | null;
+  duracaoSeg: number | null;
+  emAndamento: boolean;
+}
+
+export interface DashboardData {
+  range: DashboardRange;
+  kpis: DashboardKpis;
+  quedasPorEmpresa: QuedaPorEmpresa[];
+  quedasNoTempo: QuedaNoTempo[];
+  rankingUptime: RankingUptime[];
+  incidentesRecentes: IncidenteRecente[];
+}
+
 export const api = {
+  dashboard: (range: DashboardRange): Promise<DashboardData> =>
+    req(`/dashboard?range=${range}`),
   login: (username: string, password: string): Promise<{ user: Usuario }> =>
     req('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   sessaoAtual: (): Promise<{ user: Usuario | null }> => req('/auth/me'),

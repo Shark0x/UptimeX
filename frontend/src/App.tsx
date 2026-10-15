@@ -4,36 +4,40 @@ import { useAuth } from './auth/AuthContext';
 import { LogoUptimeXNav } from './components/LogoUptimeX';
 import { FundoCaminhos } from './components/ui/background-paths';
 import { Dashboard } from './pages/Dashboard';
+import { DashboardHome } from './pages/DashboardHome';
 import { EmpresaPainel } from './pages/EmpresaPainel';
 import { TelaLogin } from './pages/Login';
 import { PainelMacro } from './pages/PainelMacro';
 import { Admin } from './pages/Admin';
 import { MapaTV } from './pages/MapaTV';
 import { PerfilMenu } from './components/PerfilMenu';
-import { parseUrl, syncUrlToState, getCurrentState, type Vista } from './routing';
+import { parseUrl, syncUrlToState, type Vista, type Periodo } from './routing';
+import type { DashboardRange } from './api';
 
 // Lazy: React Flow (mapa de topologia) só entra no bundle quando a aba é aberta
 const Antenas = lazy(() => import('./pages/Antenas').then((m) => ({ default: m.Antenas })));
 const AntenaMapaTV = lazy(() => import('./pages/AntenaMapaTV').then((m) => ({ default: m.AntenaMapaTV })));
 
-// Mapa vista de routing para vistas internas legadas (retrocompatibilidade)
-type VistaInterna = 'dashboard' | 'macro' | 'tv' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
+// Vista interna ↔ rota. 'home' = nova Home macro; 'macro' = PainelMacro (Visão Macro).
+type VistaInterna = 'home' | 'dashboard' | 'macro' | 'tv' | 'antenas' | 'antenas-tv' | 'empresa' | 'admin';
 function vistaFromRoute(rota: Vista): VistaInterna {
   switch (rota) {
-    case 'home': return 'macro';
+    case 'home': return 'home';
+    case 'macro': return 'macro';
     case 'empresas': return 'dashboard';
     case 'mapa': return 'tv';
     case 'empresa': return 'empresa';
     case 'antenas': return 'antenas';
     case 'antenas-tv': return 'antenas-tv';
     case 'admin': return 'admin';
-    default: return 'macro';
+    default: return 'home';
   }
 }
 
 function rotaFromVista(vista: VistaInterna): Vista {
   switch (vista) {
-    case 'macro': return 'home';
+    case 'home': return 'home';
+    case 'macro': return 'macro';
     case 'dashboard': return 'empresas';
     case 'tv': return 'mapa';
     case 'empresa': return 'empresa';
@@ -45,7 +49,7 @@ function rotaFromVista(vista: VistaInterna): Vista {
 }
 
 // Profundidade de cada vista: avançar entra da direita, voltar entra da esquerda
-const PROFUNDIDADE: Record<VistaInterna, number> = { dashboard: 0, macro: 0, tv: 0, antenas: 0, 'antenas-tv': 0, admin: 1, empresa: 1 };
+const PROFUNDIDADE: Record<VistaInterna, number> = { home: 0, dashboard: 0, macro: 0, tv: 0, antenas: 0, 'antenas-tv': 0, admin: 1, empresa: 1 };
 
 function BarraNavegacao({ vista, setVista }: { vista: VistaInterna; setVista: (v: VistaInterna) => void }) {
   const { isAdmin, logout } = useAuth();
@@ -53,17 +57,23 @@ function BarraNavegacao({ vista, setVista }: { vista: VistaInterna; setVista: (v
     <header className="glass-panel relative z-50 flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 sm:py-3 mb-4 sm:mb-6">
       <div className="flex items-center gap-3 sm:gap-6 min-w-0 flex-wrap sm:flex-nowrap">
         <button
-          onClick={() => setVista('dashboard')}
+          onClick={() => setVista('home')}
           className="group hover:opacity-85 transition-opacity"
           aria-label="Ir para o painel inicial"
         >
           <LogoUptimeXNav />
         </button>
         <button
+          onClick={() => setVista('home')}
+          className={`text-sm font-display transition-colors ${vista === 'home' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
+        >
+          Painel
+        </button>
+        <button
           onClick={() => setVista('dashboard')}
           className={`text-sm font-display transition-colors ${vista === 'dashboard' || vista === 'empresa' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
         >
-          Configuração
+          Empresas
         </button>
         <button
           onClick={() => setVista('macro')}
@@ -137,16 +147,22 @@ export default function App() {
     const route = parseUrl();
     return route.focarEmpresa;
   });
+  // Filtro de período da Home (?periodo=30d). Default 30d quando ausente na URL.
+  const [periodoHome, setPeriodoHome] = useState<Periodo>(() => {
+    const route = parseUrl();
+    return route.periodo ?? '30d';
+  });
 
-  // Sincronizar mudanças de vista com URL
+  // Sincronizar mudanças de vista com URL (App é a única fonte da verdade do URL)
   useEffect(() => {
     const rota = rotaFromVista(vista);
     syncUrlToState({
       vista: rota,
       empresaId: empresaAtiva?.id,
       focarEmpresa: focarEmpresaMapa,
+      periodo: rota === 'home' ? periodoHome : undefined,
     });
-  }, [vista, empresaAtiva?.id, focarEmpresaMapa]);
+  }, [vista, empresaAtiva?.id, focarEmpresaMapa, periodoHome]);
 
   // Listener para botão voltar/avançar do navegador
   useEffect(() => {
@@ -155,10 +171,7 @@ export default function App() {
       const novaVista = vistaFromRoute(route.vista);
       setVista(novaVista);
       setFocarEmpresaMapa(route.focarEmpresa);
-
-      if (route.vista === 'empresa' && route.empresaId) {
-        // TODO: buscar empresa pelo ID se não estiver em cache
-      }
+      if (route.vista === 'home') setPeriodoHome(route.periodo ?? '30d');
     }
 
     window.addEventListener('popstate', handlePopstate);
@@ -205,7 +218,7 @@ export default function App() {
     );
 
   function selecionarEmpresa(e: Empresa) {
-    setOrigemEmpresa(vista === 'macro' ? 'macro' : 'dashboard');
+    setOrigemEmpresa(vista === 'macro' ? 'macro' : vista === 'home' ? 'home' : 'dashboard');
     setEmpresaAtiva(e);
     irPara('empresa');
   }
@@ -217,6 +230,13 @@ export default function App() {
         <BarraNavegacao vista={vista} setVista={irPara} />
         <div key={vista} className={`h-[calc(100dvh-8rem)] ${direcao === 'avante' ? 'tela-avante' : 'tela-volta'}`}>
           {vista === 'admin' && <Admin />}
+          {vista === 'home' && (
+            <DashboardHome
+              onSelecionarEmpresa={selecionarEmpresa}
+              range={periodoHome as DashboardRange}
+              onRangeChange={(r) => setPeriodoHome(r as Periodo)}
+            />
+          )}
           {vista === 'macro' && <PainelMacro onSelecionar={selecionarEmpresa} />}
           {vista === 'dashboard' && <Dashboard onSelecionar={selecionarEmpresa} />}
           {vista === 'antenas' && (
