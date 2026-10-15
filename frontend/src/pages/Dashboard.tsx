@@ -6,6 +6,7 @@ import { Paginacao } from '../components/Paginacao';
 import { useToast } from '../components/Toast';
 import { combinaBusca } from '../lib/busca';
 import { EmpresaFoto } from '../components/EmpresaFoto';
+import { EmpresaContextMenu } from '../components/EmpresaContextMenu';
 import { atualizarSnapshotEmpresas, empresasEmCache, resumosEmCache } from '../lib/empresasSnapshot';
 
 const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'];
@@ -301,28 +302,62 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
                       /30
                     </span>
                   )}
-                  {isAdmin && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Remover ${e.nome}`}
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        setEmpresaRemovendo(e);
-                      }}
-                      onKeyDown={(ev) => {
-                        if (ev.key === 'Enter' || ev.key === ' ') {
-                          ev.stopPropagation();
-                          setEmpresaRemovendo(e);
-                        }
-                      }}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100
-                        w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-offline
-                        hover:bg-signal-600/15 transition-all text-sm leading-none"
-                    >
-                      ✕
-                    </span>
-                  )}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <EmpresaContextMenu
+                      empresa={e}
+                      itens={[
+                        {
+                          label: 'Editar',
+                          icon: '✎',
+                          action: () => {
+                            // TODO: abrir modal de edição
+                            onSelecionar(e);
+                          },
+                        },
+                        {
+                          label: 'Ver no Mapa',
+                          icon: '📍',
+                          action: () => {
+                            // TODO: navegar para /mapa?empresa=ID
+                            window.history.pushState(null, '', `/mapa?empresa=${e.id}`);
+                            onSelecionar(e);
+                          },
+                        },
+                        { label: '─────', action: () => {}, disabled: true },
+                        {
+                          label: 'Status',
+                          icon: '○',
+                          action: () => onSelecionar(e),
+                        },
+                        {
+                          label: 'Topologia',
+                          icon: '⚡',
+                          action: () => onSelecionar(e),
+                        },
+                        {
+                          label: 'Link Dedicado',
+                          icon: '🔗',
+                          action: () => onSelecionar(e),
+                        },
+                        {
+                          label: 'Histórico',
+                          icon: '📊',
+                          action: () => onSelecionar(e),
+                        },
+                        ...(isAdmin
+                          ? [
+                              { label: '─────', action: () => {}, disabled: true },
+                              {
+                                label: 'Remover',
+                                icon: '✕',
+                                action: () => setEmpresaRemovendo(e),
+                                isDangerous: true,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  </div>
                   <div className="flex items-start gap-3 min-w-0">
                     <AvatarEmpresa empresa={e} />
                     <div className="min-w-0">
