@@ -530,6 +530,11 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
         <MapaEmpresas
           empresas={empresasVisiveis}
           foco={focoCoords}
+          focoEmpresa={
+            empresaFocada && focoCoords
+              ? { ...focoCoords, nome: empresaFocada.nome, endereco: empresaFocada.endereco }
+              : null
+          }
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}

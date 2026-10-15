@@ -51,6 +51,7 @@ const ROTULO_STATUS: Record<StatusMarcador, string> = {
 export function MapaEmpresas({
   empresas,
   foco,
+  focoEmpresa,
   statusPorEmpresa = {},
   modoVitrine = false,
   onSelecionarEmpresa,
@@ -60,6 +61,12 @@ export function MapaEmpresas({
 }: {
   empresas: Empresa[];
   foco: { latitude: number; longitude: number } | null;
+  /**
+   * Empresa-alvo de um deep link (/mapa?empresa=ID): abre um popup PERSISTENTE
+   * com nome + endereço, que fica até o usuário fechar ou focar outra. Separado
+   * do `foco` (que só reenquadra) e dos tooltips de hover (que vão e voltam).
+   */
+  focoEmpresa?: { latitude: number; longitude: number; nome: string; endereco?: string | null } | null;
   statusPorEmpresa?: Record<number, StatusMarcador>;
   /** Modo mural/TV: pinos maiores (o mapa continua navegável — arraste/zoom). */
   modoVitrine?: boolean;
@@ -86,6 +93,8 @@ export function MapaEmpresas({
   useEffect(() => {
     aoSelecionarRef.current = onSelecionarEmpresa;
   }, [onSelecionarEmpresa]);
+  // Popup persistente do deep link: ref própria pra sobreviver ao redraw de 15s
+  const focoPopupRef = useRef<maplibregl.Popup | null>(null);
   // Lista atual acessível fora do ciclo de render (usada pelo "Reenquadrar")
   const empresasRef = useRef(empresas);
   useEffect(() => {
@@ -249,6 +258,49 @@ export function MapaEmpresas({
     if (!mapa || !foco) return;
     mapa.flyTo({ center: [foco.longitude, foco.latitude], zoom: Math.max(mapa.getZoom(), ZOOM_CIDADE), duration: 800 });
   }, [foco]);
+
+  // Popup persistente do deep link (/mapa?empresa=ID): nome + endereço da sede
+  // focada. Fica aberto até o usuário fechar no × ou focar outra empresa. Vive
+  // em ref própria, então o redraw de status a cada 15s não o apaga.
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    if (!mapa) return;
+    // Troca de foco (ou saída) sempre fecha o popup anterior
+    focoPopupRef.current?.remove();
+    focoPopupRef.current = null;
+    if (!focoEmpresa) return;
+
+    const coord: [number, number] = [focoEmpresa.longitude, focoEmpresa.latitude];
+    const endereco = focoEmpresa.endereco?.trim();
+    // Conteúdo via DOM (evita innerHTML com dado do usuário)
+    const box = document.createElement('div');
+    box.className = 'popup-foco-empresa';
+    const nome = document.createElement('p');
+    nome.className = 'popup-foco-nome';
+    nome.textContent = focoEmpresa.nome;
+    box.appendChild(nome);
+    const end = document.createElement('p');
+    end.className = 'popup-foco-end';
+    end.textContent = endereco || 'sem endereço cadastrado';
+    box.appendChild(end);
+
+    const popup = new maplibregl.Popup({
+      closeButton: true,
+      closeOnClick: false,
+      anchor: 'bottom',
+      offset: (modoVitrine ? 26 : 14) / 2 + 8,
+      className: 'tooltip-mapa tooltip-foco',
+    })
+      .setLngLat(coord)
+      .setDOMContent(box)
+      .addTo(mapa);
+    focoPopupRef.current = popup;
+
+    return () => {
+      popup.remove();
+      if (focoPopupRef.current === popup) focoPopupRef.current = null;
+    };
+  }, [focoEmpresa, modoVitrine]);
 
   return (
     <div
