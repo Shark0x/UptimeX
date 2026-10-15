@@ -88,7 +88,7 @@ function PinIcon({ className = '' }: { className?: string }) {
   );
 }
 
-export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void }) {
+export function Dashboard({ onSelecionar, onVerNoMapa }: { onSelecionar: (e: Empresa) => void; onVerNoMapa?: (empresaId: number) => void }) {
   const { isAdmin } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>(() => empresasEmCache() ?? []);
   const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>(() =>
@@ -317,11 +317,7 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
                         {
                           label: 'Ver no Mapa',
                           icon: '📍',
-                          action: () => {
-                            // TODO: navegar para /mapa?empresa=ID
-                            window.history.pushState(null, '', `/mapa?empresa=${e.id}`);
-                            onSelecionar(e);
-                          },
+                          action: () => onVerNoMapa?.(e.id),
                         },
                         { label: '─────', action: () => {}, disabled: true },
                         {

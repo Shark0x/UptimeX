@@ -223,6 +223,12 @@ export default function App() {
     irPara('empresa');
   }
 
+  // Abre o Mapa focado numa empresa (deep link /mapa?empresa=ID em ação).
+  function verNoMapa(empresaId: number) {
+    setFocarEmpresaMapa(empresaId);
+    setVista('tv');
+  }
+
   return (
     <div className="min-h-dvh overflow-x-hidden p-3 sm:p-6 relative">
       <FundoCaminhos />
@@ -238,14 +244,18 @@ export default function App() {
             />
           )}
           {vista === 'macro' && <PainelMacro onSelecionar={selecionarEmpresa} />}
-          {vista === 'dashboard' && <Dashboard onSelecionar={selecionarEmpresa} />}
+          {vista === 'dashboard' && <Dashboard onSelecionar={selecionarEmpresa} onVerNoMapa={verNoMapa} />}
           {vista === 'antenas' && (
             <Suspense fallback={<div className="h-full flex items-center justify-center text-sm font-mono text-muted">Carregando módulo de antenas...</div>}>
               <Antenas onAbrirVisualizacaoTV={() => setVista('antenas-tv')} />
             </Suspense>
           )}
           {vista === 'empresa' && empresaAtiva && (
-            <EmpresaPainel empresa={empresaAtiva} aoVoltar={() => irPara(origemEmpresa)} />
+            <EmpresaPainel
+              empresa={empresaAtiva}
+              aoVoltar={() => irPara(origemEmpresa)}
+              onVerNoMapa={() => verNoMapa(empresaAtiva.id)}
+            />
           )}
         </div>
       </div>

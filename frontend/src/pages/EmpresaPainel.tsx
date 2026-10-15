@@ -23,7 +23,7 @@ function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; t
   );
 }
 
-export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVoltar: () => void }) {
+export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa }: { empresa: Empresa; aoVoltar: () => void; onVerNoMapa?: () => void }) {
   const { isAdmin } = useAuth();
   const [aba, setAba] = useState<Aba>('status');
   const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
@@ -113,6 +113,19 @@ export function EmpresaPainel({ empresa, aoVoltar }: { empresa: Empresa; aoVolta
           <Kpi rotulo="offline" valor={resumo.offline} tom={resumo.offline > 0 ? 'offline' : undefined} />
           <Kpi rotulo="degradados" valor={resumo.degradados} tom={resumo.degradados > 0 ? 'warn' : undefined} />
           <Kpi rotulo="latência média" valor={resumo.latMedia !== null ? `${resumo.latMedia}ms` : '—'} />
+          {aba === 'status' && onVerNoMapa && (
+            <button
+              onClick={onVerNoMapa}
+              className="flex items-center gap-1.5 text-sm font-mono px-3 py-1.5 rounded-lg border border-white/10 text-muted hover:text-signal-400 hover:border-signal-500/40 transition-all"
+              title="Ver esta empresa no mapa"
+              aria-label="Ver esta empresa no mapa"
+            >
+              <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden>
+                <path d="M6 0a4 4 0 0 0-4 4c0 2.9 4 8 4 8s4-5.1 4-8a4 4 0 0 0-4-4Zm0 5.5A1.5 1.5 0 1 1 6 2.5a1.5 1.5 0 0 1 0 3Z" />
+              </svg>
+              Ver no mapa
+            </button>
+          )}
           {aba === 'status' && isAdmin && (
             <button onClick={() => setFormAberto(true)} className="btn-primary">
               + Novo dispositivo
