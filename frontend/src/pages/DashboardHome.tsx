@@ -20,6 +20,11 @@ const RANGES: { valor: DashboardRange; rotulo: string }[] = [
 // Atualiza em paralelo ao restante do painel
 const INTERVALO_ATUALIZACAO_MS = 30000;
 
+// Cores de status da marca (fixas em todos os temas — legíveis em qualquer fundo).
+// Espelham os tokens offline/warn do tailwind.config.js; Recharts precisa de hex.
+const COR_OFFLINE = '#FF2B3A';
+const COR_WARN = '#FFB224';
+
 /** "3h 12min" / "12min" / "45s" a partir de segundos. */
 function duracao(seg: number | null): string {
   if (seg == null) return '—';
@@ -266,7 +271,7 @@ export function DashboardHome({
                   {dadosGraficoQuedas.map((d) => (
                     <Cell
                       key={d.empresaId}
-                      fill="var(--cor-offline, #ef4444)"
+                      fill={COR_OFFLINE}
                       onClick={() => abrirEmpresa(d.empresaId, d.nomeCompleto)}
                     />
                   ))}
@@ -315,7 +320,7 @@ export function DashboardHome({
                     '',
                   ]}
                 />
-                <Bar dataKey="quedas" fill="var(--cor-signal, #f59e0b)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="quedas" fill={COR_WARN} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}

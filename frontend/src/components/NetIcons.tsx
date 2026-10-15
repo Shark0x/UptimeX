@@ -171,6 +171,92 @@ export function IconOutro(props: P) {
   );
 }
 
+/**
+ * Ícones de NAVEGAÇÃO (menu principal). Mesmo viewBox e alinhamento dos ícones
+ * de equipamento, com traço um pouco mais firme (1.8) pra legibilidade a 18px.
+ * Padronizam os SVGs antes soltos inline no App.tsx.
+ */
+const baseNav: P = {
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+};
+
+/** Painel / Home — mosaico de widgets. */
+export function IconNavPainel(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      <rect x="3" y="3" width="7" height="9" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  );
+}
+
+/** Empresas — prédios/sedes. */
+export function IconNavEmpresas(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      <path d="M3 21h18" />
+      <path d="M5 21V7l6-4v18" />
+      <path d="M11 21V10l8 3v8" />
+      <path d="M8 9v.01M8 12v.01M8 15v.01" opacity="0.6" />
+      <path d="M15 14v.01M15 17v.01" opacity="0.6" />
+    </svg>
+  );
+}
+
+/** Visão Macro — camadas/panorama consolidado. */
+export function IconNavMacro(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      <path d="M12 3 2.5 7.5 12 12l9.5-4.5L12 3Z" />
+      <path d="M2.5 12 12 16.5 21.5 12" opacity="0.7" />
+      <path d="M2.5 16.5 12 21l9.5-4.5" opacity="0.45" />
+    </svg>
+  );
+}
+
+/** Mapa — pino de localização. */
+export function IconNavMapa(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      <path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21Z" />
+      <circle cx="12" cy="10.5" r="2.5" />
+    </svg>
+  );
+}
+
+/** Antenas — TORRE de rádio com enlace (não Wi-Fi): mastro, pernas e ondas. */
+export function IconNavAntena(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      {/* mastro e pernas da torre */}
+      <path d="M12 8v13" />
+      <path d="M8.5 21 12 11l3.5 10" />
+      <path d="M9.4 18h5.2" opacity="0.7" />
+      {/* enlace de rádio saindo do topo */}
+      <circle cx="12" cy="6" r="1.4" />
+      <path d="M8.8 6a4 4 0 0 1 1.1-2.4" opacity="0.6" />
+      <path d="M15.2 6a4 4 0 0 0-1.1-2.4" opacity="0.6" />
+    </svg>
+  );
+}
+
+/** Admin / Configurações — engrenagem. */
+export function IconNavAdmin(props: P) {
+  return (
+    <svg {...baseNav} {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 export interface TipoEquipamento {
   valor: string;
   rotulo: string;
