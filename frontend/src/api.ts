@@ -290,6 +290,10 @@ export interface LinkDedicado {
   bloco: string;
   descricao: string | null;
   criado_em: string;
+  // "Sem monitoramento": flag do link + dispositivo associado (opcional). Quando
+  // marcado com um dispositivo, o backend pausa o ping desse dispositivo.
+  sem_monitoramento: boolean;
+  dispositivo_id: number | null;
 }
 
 export interface AuditoriaItem {
@@ -432,6 +436,15 @@ export const api = {
   criarLink: (empresa_id: number, bloco: string, descricao: string) =>
     req('/links', { method: 'POST', body: JSON.stringify({ empresa_id, bloco, descricao }) }),
   removerLink: (id: number) => req(`/links/${id}`, { method: 'DELETE' }),
+  atualizarMonitoramentoLink: (
+    id: number,
+    sem_monitoramento: boolean,
+    dispositivo_id: number | null
+  ): Promise<{ ok: boolean; sem_monitoramento: boolean; dispositivo_id: number | null }> =>
+    req(`/links/${id}/monitoramento`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sem_monitoramento, dispositivo_id }),
+    }),
 
   statusAlertas: (): Promise<{
     telegramConfigurado: boolean;
