@@ -75,7 +75,7 @@ function BarraNavegacao({ vista, setVista }: { vista: VistaInterna; setVista: (v
           onClick={() => setVista('tv')}
           className={`text-sm font-display transition-colors ${vista === 'tv' ? 'text-signal-400' : 'text-muted hover:text-slate-200'}`}
         >
-          Mapa TV
+          Mapa
         </button>
       </div>
       <div className="flex items-center gap-3 sm:gap-4 shrink-0">

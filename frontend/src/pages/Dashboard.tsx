@@ -194,7 +194,7 @@ export function Dashboard({ onSelecionar }: { onSelecionar: (e: Empresa) => void
         <div>
           <p className="eyebrow mb-1">Cadastro & monitoramento</p>
           <h1 className="font-display text-2xl font-semibold text-slate-100 tracking-tight">Painel de Configuração</h1>
-          <p className="text-muted text-sm font-mono mt-1">cadastre as empresas aqui — elas aparecem no Mapa TV</p>
+          <p className="text-muted text-sm font-mono mt-1">cadastre as empresas aqui — elas aparecem no Mapa</p>
         </div>
         {isAdmin && (
           <button onClick={() => setFormAberto(true)} className="btn-primary">
