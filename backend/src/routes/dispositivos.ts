@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Server as SocketServer } from 'socket.io';
 import { pool } from '../db/pool';
 import { registrarAuditoria } from '../services/auditService';
-import { iniciarMonitoramento, pararMonitoramento } from '../services/monitorEngine';
+import { iniciarMonitoramento, pararMonitoramento, verificarAgora } from '../services/monitorEngine';
 import { limparAlertas } from '../services/alertaService';
 import { authMiddleware, requireEmpresaParam, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
@@ -28,6 +28,51 @@ export function criarDispositivosRouter(io: SocketServer) {
     );
     res.json(rows);
   });
+
+  // Verificação sob demanda ("Testar ping"): força um ciclo imediato em todos os
+  // dispositivos ativos da empresa. Atualiza status/histórico e emite os eventos
+  // ao vivo — se o equipamento responder, o painel recupera na hora. Operador+.
+  router.post(
+    '/empresa/:empresaId/verificar',
+    requireEmpresaParam('empresaId'),
+    requireRole('admin', 'operador'),
+    async (req, res) => {
+      const empresaId = normalizarIdPositivo(req.params.empresaId);
+      if (!empresaId) return res.status(400).json({ erro: 'Empresa inválida' });
+      const [dispositivos]: any = await pool.query(
+        `SELECT id, nome FROM dispositivos WHERE empresa_id = ? AND ativo = TRUE ORDER BY nome`,
+        [empresaId]
+      );
+      const resultados = await Promise.all(
+        dispositivos.map(async (d: any) => {
+          try {
+            const r = await verificarAgora(d.id, io);
+            return {
+              id: d.id,
+              nome: d.nome,
+              online: r?.online ?? false,
+              latenciaMs: r?.latenciaMs ?? null,
+              perdaPct: r?.perdaPct ?? null,
+            };
+          } catch {
+            // IP inválido/bloqueado (exigirDestinoMonitoramento) ou falha de rede:
+            // reporta como sem resposta, sem derrubar o teste dos demais.
+            return { id: d.id, nome: d.nome, online: false, erro: true };
+          }
+        })
+      );
+      await registrarAuditoria(
+        req.user!.username,
+        'testar',
+        'empresa',
+        empresaId,
+        `Testou ping de ${dispositivos.length} dispositivo(s)`,
+        req.ip,
+        { usuarioId: req.user!.id, empresaId }
+      );
+      res.json({ total: dispositivos.length, resultados });
+    }
+  );
 
   router.get('/:id/historico', async (req, res) => {
     const dispositivoId = normalizarIdPositivo(req.params.id);

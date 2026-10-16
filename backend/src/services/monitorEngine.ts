@@ -164,6 +164,25 @@ export function iniciarMonitoramento(dispositivoId: number, io: SocketServer) {
   ciclo(dispositivoId, io);
 }
 
+/**
+ * Verificação sob demanda ("Testar ping agora"): roda UM ciclo imediato, fora do
+ * intervalo de polling, e devolve o resultado. Atualiza status/histórico e emite
+ * os mesmos eventos de um ciclo normal — então o painel aberto recupera na hora
+ * se o equipamento responder. NÃO mexe no timer do polling regular (que segue no
+ * seu ritmo). Devolve null se o dispositivo não existe ou está inativo.
+ */
+export async function verificarAgora(
+  dispositivoId: number,
+  io: SocketServer
+): Promise<ResultadoVerificacao | null> {
+  const [rows]: any = await workerQuery(`SELECT * FROM dispositivos WHERE id = ? AND ativo = TRUE`, [dispositivoId]);
+  if (rows.length === 0) return null;
+  const d: Dispositivo = rows[0];
+  const resultado = await verificarStatus(d);
+  await processarResultado(d, resultado, io);
+  return resultado;
+}
+
 // Nota: NÃO limpa o rastreio de alertas aqui — editar um dispositivo reinicia o
 // polling, e se a queda já foi alertada o "recuperado" ainda precisa sair quando
 // ele voltar. A limpeza acontece só em remoção/desativação (rotas + ciclo).

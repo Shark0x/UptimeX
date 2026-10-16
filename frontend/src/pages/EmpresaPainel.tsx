@@ -24,7 +24,11 @@ function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; t
 }
 
 export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAbaChange }: { empresa: Empresa; aoVoltar: () => void; onVerNoMapa?: () => void; abaInicial?: Aba; onAbaChange?: (aba: Aba) => void }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, usuario } = useAuth();
+  const toast = useToast();
+  // "Testar ping" força um ciclo que muda estado (status/histórico), então só
+  // operador+ pode (mesmo gate do backend; visualizador não vê o botão).
+  const podeOperar = usuario?.role === 'admin' || usuario?.role === 'operador';
   const [aba, setAbaState] = useState<Aba>(abaInicial ?? 'status');
   function setAba(nova: Aba) {
     setAbaState(nova);
@@ -35,10 +39,34 @@ export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAb
   const [dispositivoEditando, setDispositivoEditando] = useState<Dispositivo | null>(null);
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [relatorioAberto, setRelatorioAberto] = useState(false);
+  const [testando, setTestando] = useState(false);
 
   async function recarregar() {
     const lista = await api.listarDispositivos(empresa.id);
     setDispositivos(lista);
+  }
+
+  // Força um ping agora em todos os dispositivos ativos da empresa. Útil quando
+  // algum aparece "sem resposta" e o operador quer confirmar se é queda real ou
+  // ruído do ciclo. O backend emite os eventos ao vivo (os cards recuperam
+  // sozinhos via socket); o recarregar() no fim é só rede de segurança.
+  async function testarPing() {
+    setTestando(true);
+    try {
+      const { total, resultados } = await api.verificarEmpresaAgora(empresa.id);
+      if (total === 0) {
+        toast.info('Nenhum dispositivo ativo pra testar.');
+      } else {
+        const responderam = resultados.filter((r) => r.online).length;
+        if (responderam === total) toast.sucesso(`Ping OK — ${responderam}/${total} responderam.`);
+        else toast.erro(`${total - responderam}/${total} sem resposta ao ping.`);
+      }
+      await recarregar();
+    } catch (err: any) {
+      toast.erro(err?.message || 'Falha ao testar o ping.');
+    } finally {
+      setTestando(false);
+    }
   }
 
   useEffect(() => {
@@ -117,6 +145,27 @@ export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAb
           <Kpi rotulo="offline" valor={resumo.offline} tom={resumo.offline > 0 ? 'offline' : undefined} />
           <Kpi rotulo="degradados" valor={resumo.degradados} tom={resumo.degradados > 0 ? 'warn' : undefined} />
           <Kpi rotulo="latência média" valor={resumo.latMedia !== null ? `${resumo.latMedia}ms` : '—'} />
+          {aba === 'status' && podeOperar && (
+            <button
+              onClick={testarPing}
+              disabled={testando}
+              className="flex items-center gap-1.5 text-sm font-mono px-3 py-1.5 rounded-lg border border-white/10 text-muted hover:text-signal-400 hover:border-signal-500/40 transition-all disabled:opacity-50 disabled:cursor-wait"
+              title="Força um ping agora em todos os dispositivos desta empresa"
+              aria-label="Testar ping de todos os dispositivos agora"
+            >
+              <svg
+                viewBox="0 0 12 12"
+                className={`w-3 h-3 ${testando ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden
+              >
+                <path d="M10.5 6a4.5 4.5 0 1 1-1.32-3.18M10.5 1.5V4H8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {testando ? 'Testando…' : 'Testar ping'}
+            </button>
+          )}
           {aba === 'status' && onVerNoMapa && (
             <button
               onClick={onVerNoMapa}

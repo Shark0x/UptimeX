@@ -400,6 +400,12 @@ export const api = {
 
   listarDispositivos: (empresaId: number): Promise<Dispositivo[]> =>
     req(`/dispositivos/empresa/${empresaId}`),
+  verificarEmpresaAgora: (
+    empresaId: number
+  ): Promise<{
+    total: number;
+    resultados: { id: number; nome: string; online: boolean; latenciaMs: number | null; perdaPct: number | null; erro?: boolean }[];
+  }> => req(`/dispositivos/empresa/${empresaId}/verificar`, { method: 'POST' }),
   historicoDispositivo: (id: number): Promise<StatusEvento[]> =>
     req(`/dispositivos/${id}/historico`),
   metricasDispositivo: (id: number, minutos: number): Promise<PingMetrica[]> =>
