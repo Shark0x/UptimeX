@@ -242,18 +242,18 @@ export function DashboardHome({
                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-white/5" />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fontFamily: 'monospace' }}
+                  tick={{ fontSize: 11, fontFamily: 'monospace', fill: 'currentColor' }}
                   stroke="currentColor"
-                  className="text-muted"
+                  className="text-slate-400"
                   allowDecimals={false}
                 />
                 <YAxis
                   type="category"
                   dataKey="nome"
                   width={130}
-                  tick={{ fontSize: 11, fontFamily: 'monospace' }}
+                  tick={{ fontSize: 11, fontFamily: 'monospace', fill: 'currentColor' }}
                   stroke="currentColor"
-                  className="text-muted"
+                  className="text-slate-300"
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(255,255,255,0.04)' }}
@@ -264,6 +264,8 @@ export function DashboardHome({
                     fontSize: 12,
                     fontFamily: 'monospace',
                   }}
+                  labelStyle={{ color: '#f4f5f8' }}
+                  itemStyle={{ color: '#e9eaf2' }}
                   formatter={(v: number) => [`${v} quedas`, '']}
                   labelFormatter={(_, p) => p?.[0]?.payload?.nomeCompleto ?? ''}
                 />
@@ -294,16 +296,16 @@ export function DashboardHome({
                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-white/5" />
                 <XAxis
                   dataKey="dia"
-                  tick={{ fontSize: 10, fontFamily: 'monospace' }}
+                  tick={{ fontSize: 10, fontFamily: 'monospace', fill: 'currentColor' }}
                   stroke="currentColor"
-                  className="text-muted"
+                  className="text-slate-400"
                   interval="preserveStartEnd"
                   minTickGap={20}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fontFamily: 'monospace' }}
+                  tick={{ fontSize: 11, fontFamily: 'monospace', fill: 'currentColor' }}
                   stroke="currentColor"
-                  className="text-muted"
+                  className="text-slate-400"
                   allowDecimals={false}
                 />
                 <Tooltip
@@ -315,6 +317,8 @@ export function DashboardHome({
                     fontSize: 12,
                     fontFamily: 'monospace',
                   }}
+                  labelStyle={{ color: '#f4f5f8' }}
+                  itemStyle={{ color: '#e9eaf2' }}
                   formatter={(v: number, nome) => [
                     nome === 'quedas' ? `${v} quedas` : `${v} empresas`,
                     '',
