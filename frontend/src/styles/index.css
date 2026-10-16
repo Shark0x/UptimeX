@@ -476,6 +476,9 @@ body {
    (vem depois na cascata, então vence). Só o balão muda; o pino continua igual. */
 .tooltip-foco {
   pointer-events: auto;
+  /* O foco precisa ficar acima do radar lateral, inclusive no viewport mobile,
+     para que o botão de fechar continue acessível. */
+  z-index: 500 !important;
 }
 .tooltip-foco .maplibregl-popup-content {
   background: rgba(24, 28, 36, 0.97);

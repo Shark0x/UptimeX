@@ -13,24 +13,24 @@ test('admin possui bypass global explicito', () => {
   assert.deepEqual(filtroEmpresaSql(admin, 'e.id'), { sql: '1 = 1', params: [] });
 });
 
-test('operador e visualizador acessam somente empresas vinculadas', () => {
+test('perfis internos acessam todas as empresas', () => {
   const operador = { role: 'operador', empresaIds: [2, 7] };
   const visualizador = { role: 'visualizador', empresaIds: [3] };
 
   assert.equal(podeAcessarEmpresa(operador, 2), true);
-  assert.equal(podeAcessarEmpresa(operador, 3), false);
+  assert.equal(podeAcessarEmpresa(operador, 3), true);
   assert.equal(podeAcessarEmpresa(visualizador, 3), true);
-  assert.equal(podeAcessarEmpresa(visualizador, 2), false);
+  assert.equal(podeAcessarEmpresa(visualizador, 2), true);
   assert.deepEqual(filtroEmpresaSql(operador, 'd.empresa_id'), {
-    sql: 'd.empresa_id IN (?)',
-    params: [[2, 7]],
+    sql: '1 = 1',
+    params: [],
   });
 });
 
-test('usuario sem vinculos recebe filtro que nega tudo', () => {
+test('perfil interno sem vinculos mantem acesso global', () => {
   const usuario = { role: 'visualizador', empresaIds: [] };
-  assert.equal(podeAcessarEmpresa(usuario, 1), false);
-  assert.deepEqual(filtroEmpresaSql(usuario, 'empresa_id'), { sql: '1 = 0', params: [] });
+  assert.equal(podeAcessarEmpresa(usuario, 1), true);
+  assert.deepEqual(filtroEmpresaSql(usuario, 'empresa_id'), { sql: '1 = 1', params: [] });
 });
 
 test('somente admin e operador podem escrever em recursos tenant', () => {
