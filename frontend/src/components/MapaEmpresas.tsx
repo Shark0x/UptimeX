@@ -322,7 +322,7 @@ export function MapaEmpresas({
   return (
     <div
       ref={divRef}
-      className="w-full h-full min-h-[240px] rounded-xl overflow-hidden border border-white/[0.06] relative z-0"
+      className="w-full h-full min-h-[240px] rounded-xl overflow-hidden border border-white/[0.06] relative"
       aria-label="Mapa com a localização das empresas monitoradas"
     />
   );
