@@ -1,7 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api, ConfigResumo, Empresa, Papel, UsuarioListado } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
+import {
+  lerConfigAlarme,
+  salvarConfigAlarme,
+  lerNomeAudioCustom,
+  salvarAudioCustom,
+  removerAudioCustom,
+  tocarAlarmeConfigurado,
+  PRESETS_ALARME,
+  TAMANHO_MAX_AUDIO,
+  type ConfigAlarme,
+  type TipoAlarme,
+} from '../lib/audioAlarme';
 import { AuditoriaCentral } from '../components/AuditoriaCentral';
 import { PasswordInput } from '../components/PasswordInput';
 import { APP_VERSION } from '../version';
@@ -88,6 +100,63 @@ export function Admin() {
   const [chatId, setChatId] = useState('');
   const [atrasoSeg, setAtrasoSeg] = useState(120);
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+
+  // Alarme sonoro do mural/TV — preferência LOCAL deste navegador (localStorage).
+  const [alarmeCfg, setAlarmeCfg] = useState<ConfigAlarme>(() => lerConfigAlarme());
+  const [nomeAudioCustom, setNomeAudioCustom] = useState<string | null>(() => lerNomeAudioCustom());
+  const audioTesteRef = useRef<AudioContext | null>(null);
+
+  function atualizarAlarme(parcial: Partial<ConfigAlarme>) {
+    setAlarmeCfg((atual) => {
+      const novo = { ...atual, ...parcial };
+      salvarConfigAlarme(novo);
+      return novo;
+    });
+  }
+
+  function garantirAudioCtx(): AudioContext | null {
+    if (!audioTesteRef.current) {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (Ctx) audioTesteRef.current = new Ctx();
+    }
+    audioTesteRef.current?.resume?.();
+    return audioTesteRef.current;
+  }
+
+  function testarAlarme(cfg: ConfigAlarme) {
+    const ctx = garantirAudioCtx();
+    if (ctx) void tocarAlarmeConfigurado(ctx, cfg);
+  }
+
+  function aoEscolherAudioAlarme(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0];
+    e.target.value = ''; // permite re-selecionar o mesmo arquivo depois
+    if (!arquivo) return;
+    if (arquivo.size > TAMANHO_MAX_AUDIO) {
+      toast.erro('Áudio muito grande (máx. 2 MB).');
+      return;
+    }
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      try {
+        salvarAudioCustom(String(leitor.result), arquivo.name);
+        setNomeAudioCustom(arquivo.name);
+        atualizarAlarme({ tipo: 'custom' });
+        toast.sucesso('Áudio de alarme salvo neste navegador.');
+      } catch {
+        toast.erro('Não deu pra salvar — arquivo grande demais pro armazenamento do navegador.');
+      }
+    };
+    leitor.onerror = () => toast.erro('Falha ao ler o arquivo de áudio.');
+    leitor.readAsDataURL(arquivo);
+  }
+
+  function removerAudioAlarme() {
+    removerAudioCustom();
+    setNomeAudioCustom(null);
+    if (alarmeCfg.tipo === 'custom') atualizarAlarme({ tipo: 'bipe-duplo' });
+    toast.sucesso('Áudio personalizado removido.');
+  }
   const [testandoTelegram, setTestandoTelegram] = useState(false);
 
   // Resumos periódicos no Telegram
@@ -575,6 +644,80 @@ export function Admin() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* --- Alerta sonoro do mural/TV (preferência LOCAL deste navegador) --- */}
+        <div className="glass-panel hud-corners p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-1">Alerta sonoro</p>
+              <p className="font-display font-semibold text-slate-100">Som do mural / TV</p>
+              <p className="text-muted text-sm mt-1 max-w-lg">
+                Toca quando uma sede cai (no Mapa TV, com o som ligado). É uma preferência
+                <span className="text-slate-300"> deste navegador</span> — configure na própria tela que fica no mural.
+              </p>
+            </div>
+            <button onClick={() => testarAlarme(alarmeCfg)} className="btn-ghost border border-white/10 shrink-0">
+              ♪ Ouvir
+            </button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-white/[0.06] grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label-field">Tipo de som</label>
+              <select
+                value={alarmeCfg.tipo}
+                onChange={(e) => atualizarAlarme({ tipo: e.target.value as TipoAlarme })}
+                className="input"
+              >
+                {PRESETS_ALARME.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label-field">Volume · {Math.round(alarmeCfg.volume * 100)}%</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(alarmeCfg.volume * 100)}
+                onChange={(e) => atualizarAlarme({ volume: Number(e.target.value) / 100 })}
+                className="w-full accent-signal-500 h-9"
+                aria-label="Volume do alarme"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="label-field">Áudio personalizado (mp3, wav, ogg, m4a — máx. 2 MB)</label>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="btn-ghost border border-white/10 cursor-pointer">
+                  {nomeAudioCustom ? 'Trocar arquivo' : 'Escolher arquivo'}
+                  <input type="file" accept="audio/*" onChange={aoEscolherAudioAlarme} className="hidden" />
+                </label>
+                {nomeAudioCustom ? (
+                  <>
+                    <span className="text-sm font-mono text-slate-300 truncate max-w-[220px]" title={nomeAudioCustom}>
+                      {nomeAudioCustom}
+                    </span>
+                    <button onClick={removerAudioAlarme} className="text-xs font-mono text-muted hover:text-offline">
+                      remover
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs font-mono text-muted">nenhum arquivo — usando os sons sintetizados</span>
+                )}
+              </div>
+              {alarmeCfg.tipo === 'custom' && !nomeAudioCustom && (
+                <p className="text-[11px] font-mono text-warn mt-2">
+                  Tipo "Áudio personalizado" selecionado, mas sem arquivo — vai tocar o bipe padrão. Escolha um arquivo acima.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* --- Resumos periódicos --- */}

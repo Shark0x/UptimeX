@@ -221,6 +221,7 @@ export default function App() {
       <div className="tema-escuro-fixo">
         <MapaTV
           focarEmpresaId={focarEmpresaMapa}
+          onFecharFoco={() => setFocarEmpresaMapa(undefined)}
           onSair={() => {
             setFocarEmpresaMapa(undefined);
             setVista('dashboard');
@@ -228,6 +229,12 @@ export default function App() {
           onAbrirEmpresa={(e) => {
             setOrigemEmpresa('tv');
             setEmpresaAtiva(e);
+            // Sincroniza empresaIdAlvo/subAba com a empresa clicada. Sem isto, um
+            // empresaIdAlvo ANTIGO (de uma empresa aberta antes) sobrevive e o
+            // efeito de hidratação troca/derruba a navegação — abrir uma empresa
+            // do radar acabava caindo na Home ("sair").
+            setEmpresaIdAlvo(Number(e.id));
+            setSubAbaEmpresa('status');
             setFocarEmpresaMapa(undefined);
             irPara('empresa');
           }}

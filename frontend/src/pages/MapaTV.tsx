@@ -4,6 +4,7 @@ import { MapaEmpresas, StatusMarcador } from '../components/MapaEmpresas';
 import { LogoUptimeXNav } from '../components/LogoUptimeX';
 import { combinaBusca } from '../lib/busca';
 import { atualizarSnapshotEmpresas, empresasEmCache, resumosEmCache } from '../lib/empresasSnapshot';
+import { tocarAlarmeConfigurado } from '../lib/audioAlarme';
 
 // Posição do radar de empresas, arrastável pelo operador e lembrada entre sessões.
 const RADAR_POS_CHAVE = 'mapatv_radar_pos';
@@ -21,12 +22,15 @@ const INTERVALO_ATUALIZACAO_MS = 15000;
 // balão sai e sobra só o pino vermelho quieto (o painel lateral segue listando).
 const TIMEOUT_ROTULO_MIN = 4 * 60;
 
+// Ordem do radar (ascendente = topo→fim). "Sem monitoramento" vai pro FIM, depois
+// das que estão no ar: são ruído pro operador (sem sinal a acompanhar), então não
+// devem ficar acima das empresas realmente no ar.
 const ORDEM_STATUS: Record<StatusMarcador, number> = {
   offline: 0,
   degradado: 1,
   link30: 1.5,
-  sem: 2,
   online: 3,
+  sem: 4,
 };
 
 interface ResumoEmpresa {
@@ -116,7 +120,7 @@ function ItemLegenda({ classe, texto }: { classe: string; texto: string }) {
  * Atualiza sozinho a cada 15s; o botão "Tela cheia" usa a Fullscreen API pra
  * sumir com a barra do navegador.
  */
-export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () => void; onAbrirEmpresa: (empresa: Empresa) => void; focarEmpresaId?: number }) {
+export function MapaTV({ onSair, onAbrirEmpresa, onFecharFoco, focarEmpresaId }: { onSair: () => void; onAbrirEmpresa: (empresa: Empresa) => void; onFecharFoco?: () => void; focarEmpresaId?: number }) {
   const [empresas, setEmpresas] = useState<Empresa[]>(() => empresasEmCache() ?? []);
   const [resumos, setResumos] = useState<Record<number, ResumoEmpresa>>(() => indexarResumos(resumosEmCache() ?? []));
   const [atualizadoEm, setAtualizadoEm] = useState<number>(Date.now());
@@ -207,24 +211,12 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
     };
   }, []);
 
-  // Bipe curto de alerta via WebAudio (sem depender de arquivo de áudio)
+  // Alarme configurável (tipo/volume/áudio custom) — preferências locais lidas em
+  // audioAlarme.ts, ajustáveis na engrenagem (Configurações → Alertas).
   function tocarAlarme() {
     const ctx = audioRef.current;
     if (!ctx) return;
-    const agoraCtx = ctx.currentTime;
-    [0, 0.28].forEach((atraso) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, agoraCtx + atraso);
-      gain.gain.exponentialRampToValueAtTime(0.18, agoraCtx + atraso + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, agoraCtx + atraso + 0.22);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(agoraCtx + atraso);
-      osc.stop(agoraCtx + atraso + 0.24);
-    });
+    void tocarAlarmeConfigurado(ctx);
   }
 
   function alternarSom() {
@@ -329,6 +321,17 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
         ? { latitude: Number(empresaFocada.latitude), longitude: Number(empresaFocada.longitude) }
         : null,
     [empresaFocada]
+  );
+  // Objeto do popup de foco com REFERÊNCIA ESTÁVEL: o relógio (setAgora a cada 1s)
+  // re-renderiza o MapaTV, e um objeto literal inline recriaria o popup a cada
+  // segundo — causando flicker e fazendo o × "não fechar". Só muda quando a
+  // empresa/coords mudam de fato.
+  const focoEmpresaPopup = useMemo(
+    () =>
+      empresaFocada && focoCoords
+        ? { ...focoCoords, nome: empresaFocada.nome, endereco: empresaFocada.endereco }
+        : null,
+    [empresaFocada, focoCoords]
   );
   // Aviso: deep link apontou pra uma empresa carregada, mas sem coordenadas.
   const focoSemCoords = !!(focarEmpresaId && empresaFocada && !focoCoords);
@@ -530,11 +533,8 @@ export function MapaTV({ onSair, onAbrirEmpresa, focarEmpresaId }: { onSair: () 
         <MapaEmpresas
           empresas={empresasVisiveis}
           foco={focoCoords}
-          focoEmpresa={
-            empresaFocada && focoCoords
-              ? { ...focoCoords, nome: empresaFocada.nome, endereco: empresaFocada.endereco }
-              : null
-          }
+          focoEmpresa={focoEmpresaPopup}
+          onFecharFoco={onFecharFoco}
           statusPorEmpresa={statusPorEmpresa}
           modoVitrine
           onSelecionarEmpresa={onAbrirEmpresa}

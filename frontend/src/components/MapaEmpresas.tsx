@@ -55,6 +55,7 @@ export function MapaEmpresas({
   statusPorEmpresa = {},
   modoVitrine = false,
   onSelecionarEmpresa,
+  onFecharFoco,
   reenquadrarToken,
   rotularQuedas = false,
   quedasRecentes,
@@ -72,6 +73,8 @@ export function MapaEmpresas({
   modoVitrine?: boolean;
   /** Clique num pino abre a empresa (ex.: ir direto ao painel de configuração). */
   onSelecionarEmpresa?: (empresa: Empresa) => void;
+  /** Chamado quando o usuário fecha o popup de foco no × (deep link /mapa?empresa=ID). */
+  onFecharFoco?: () => void;
   /** Ao incrementar, reenquadra o mapa em todas as sedes (botão "Reenquadrar"). */
   reenquadrarToken?: number;
   /** Mostra o nome fixo em cima das empresas offline (com anti-sobreposição). */
@@ -93,6 +96,11 @@ export function MapaEmpresas({
   useEffect(() => {
     aoSelecionarRef.current = onSelecionarEmpresa;
   }, [onSelecionarEmpresa]);
+  // Callback de fechar-foco sempre atual, lido pelo listener 'close' do popup
+  const aoFecharFocoRef = useRef(onFecharFoco);
+  useEffect(() => {
+    aoFecharFocoRef.current = onFecharFoco;
+  }, [onFecharFoco]);
   // Popup persistente do deep link: ref própria pra sobreviver ao redraw de 15s
   const focoPopupRef = useRef<maplibregl.Popup | null>(null);
   // Lista atual acessível fora do ciclo de render (usada pelo "Reenquadrar")
@@ -296,7 +304,16 @@ export function MapaEmpresas({
       .addTo(mapa);
     focoPopupRef.current = popup;
 
+    // Clicar no × dispara 'close': avisamos o pai pra LIMPAR o foco. Sem isso o
+    // próximo render recria o popup e ele "não fecha". O flag impede que o
+    // remove() PROGRAMÁTICO (troca de foco/desmontagem) seja lido como fechar manual.
+    let fechadoPeloCodigo = false;
+    popup.on('close', () => {
+      if (!fechadoPeloCodigo) aoFecharFocoRef.current?.();
+    });
+
     return () => {
+      fechadoPeloCodigo = true;
       popup.remove();
       if (focoPopupRef.current === popup) focoPopupRef.current = null;
     };
