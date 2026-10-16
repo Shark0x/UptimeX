@@ -15,7 +15,9 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1',
+    // Vite efêmero só pros testes e2e (localhost, backend mockado) — não há mais
+    // script `dev`/app em :5173. Serve pra dar à SPA um host durante os testes.
+    command: 'npx vite --host 127.0.0.1 --port 5173',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: true,
     timeout: 120_000,

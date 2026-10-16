@@ -81,6 +81,9 @@ services:
       POSTGRES_WORKER_USER: ${POSTGRES_WORKER_USER:-uptimex_worker}
       POSTGRES_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?defina POSTGRES_WORKER_PASSWORD no arquivo .env}
       BIND_HOST: 0.0.0.0
+      # Origem do frontend (nginx :8080). Mesma origem via proxy do nginx, então o
+      # CORS só entra em jogo se algum front cross-origin for adicionado depois.
+      FRONTEND_URL: "http://localhost:8080"
       TRUST_PROXY_HOPS: 1
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?defina DATA_ENCRYPTION_KEY no arquivo .env}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
