@@ -43,9 +43,10 @@ test('exibe histórico consolidado responsivo e troca o período', async ({ page
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   });
 
-  await page.goto('/');
-  await page.getByRole('button', { name: /Acme NOC/ }).first().click();
-  await page.getByRole('button', { name: 'Histórico' }).click();
+  // O redesign trocou o landing e adicionou deep links de empresa. Entramos
+  // direto na aba Histórico da empresa 7 (auth/me já devolve usuário logado):
+  // o App hidrata a empresa via /api/empresas e abre a aba 'historico'.
+  await page.goto('/empresas/7/historico');
 
   await expect(page.getByRole('heading', { name: 'Disponibilidade consolidada · Acme NOC' })).toBeVisible();
   await expect(page.getByRole('button', { name: '24h' })).toHaveAttribute('aria-pressed', 'true');

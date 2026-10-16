@@ -549,11 +549,19 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
     () =>
       ordenadas.filter(({ e, status }) => {
         const correspondeBusca = combinaBusca(`${e.nome} ${e.endereco || ''}`, busca);
+        // Cada filtro é um caso exclusivo: 'todos' passa tudo; '/30' casa por
+        // link_30; 'sem-monitor' cobre desconhecido+vazio; o resto casa o status
+        // direto. (Antes, `filtro==='todos' || filtro==='/30' ? e.link_30 : …`
+        // agrupava o 'todos' na condição do ternário por precedência do `||`, e a
+        // frota inteira sumia no filtro padrão — só /30 aparecia.)
         const correspondeFiltro =
-          filtro === 'todos' ||
-          filtro === '/30' ? e.link_30 :
-          status === filtro ||
-          (filtro === 'sem-monitor' && (status === 'desconhecido' || status === 'vazio'));
+          filtro === 'todos'
+            ? true
+            : filtro === '/30'
+              ? Boolean(e.link_30)
+              : filtro === 'sem-monitor'
+                ? status === 'desconhecido' || status === 'vazio'
+                : status === filtro;
         return correspondeBusca && correspondeFiltro;
       }),
     [ordenadas, busca, filtro]

@@ -55,13 +55,15 @@ test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ 
     });
   });
 
-  await page.goto('/');
+  // O redesign moveu o landing pós-login pra Home (DashboardHome, que busca
+  // /api/dashboard — não resumo-status). Entramos direto na rota /macro: após o
+  // login o App já renderiza o PainelMacro, que é quem busca o resumo-status.
+  await page.goto('/macro');
   await page.locator('#login-usuario').fill('noc.visual');
   await page.locator('#login-senha').fill('teste-visual-seguro');
   const primeiroResumo = page.waitForResponse((resposta) => resposta.url().includes('/api/empresas/resumo-status'));
   await page.getByRole('button', { name: 'Acessar a central' }).click();
   await primeiroResumo;
-  await page.getByRole('button', { name: 'Visão Macro' }).click();
 
   await expect(page.getByRole('heading', { name: '3 EMPRESAS EM QUEDA' })).toBeVisible({ timeout: 900 });
   await expect(page.getByText('Composição da frota')).toBeVisible();
