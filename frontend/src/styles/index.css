@@ -470,10 +470,10 @@ body {
   border-top-color: rgba(11, 11, 15, 0.92) !important;
 }
 
-/* Popup PERSISTENTE do deep link (/mapa?empresa=ID): balão estilo Google Maps
-   (dark) — card grafite arredondado, borda sutil, sombra de elevação e a pontinha
-   apontando pro pino. Interativo (botão ×). Sobrescreve a caixa do .tooltip-mapa
-   (vem depois na cascata, então vence). Só o balão muda; o pino continua igual. */
+/* Popup PERSISTENTE do deep link (/mapa?empresa=ID): balão HUD na PALETA DA MARCA
+   (dark + acento vermelho + glow). Interativo (botão × + botão Street View).
+   Sobrescreve a caixa do .tooltip-mapa (vem depois na cascata, então vence).
+   Só o balão muda; o pino continua igual. */
 .tooltip-foco {
   pointer-events: auto;
   /* O foco precisa ficar acima do radar lateral, inclusive no viewport mobile,
@@ -481,16 +481,16 @@ body {
   z-index: 500 !important;
 }
 .tooltip-foco .maplibregl-popup-content {
-  background: rgba(24, 28, 36, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.4);
-  padding: 11px 34px 11px 14px;
+  background: rgba(11, 11, 15, 0.96);
+  border: 1px solid rgba(255, 43, 58, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 43, 58, 0.22), 0 12px 32px rgba(0, 0, 0, 0.8);
+  padding: 11px 34px 12px 14px;
   max-width: 280px;
 }
-/* A pontinha (anchor:bottom) acompanha a cor do card */
+/* A pontinha (anchor:bottom) acompanha a cor escura do card */
 .tooltip-foco .maplibregl-popup-tip {
-  border-top-color: rgba(24, 28, 36, 0.97) !important;
+  border-top-color: rgba(11, 11, 15, 0.96) !important;
 }
 .tooltip-foco .maplibregl-popup-close-button {
   display: flex;
@@ -508,13 +508,13 @@ body {
 }
 .tooltip-foco .maplibregl-popup-close-button:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 43, 58, 0.18);
 }
 .popup-foco-nome {
   font-family: 'Chakra Petch', sans-serif;
   font-weight: 600;
   font-size: 14px;
-  color: #f1f5f9;
+  color: #f4f5f8;
   line-height: 1.25;
 }
 .popup-foco-end {
@@ -527,6 +527,33 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Botões de ação dentro do balão de foco (Street View / Google Maps) — marca */
+.popup-foco-acoes {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.popup-foco-streetview {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #e9eaf2;
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 43, 58, 0.4);
+  background: rgba(11, 11, 15, 0.6);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.popup-foco-streetview:hover {
+  background: rgba(255, 43, 58, 0.18);
+  border-color: rgba(255, 43, 58, 0.65);
+  color: #fff;
 }
 
 /* Rótulo fixo da queda no mural da TV: nome compacto, tamanho controlado */

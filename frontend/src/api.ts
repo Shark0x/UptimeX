@@ -394,6 +394,16 @@ export const api = {
     if (payload.foto) fd.append('foto', payload.foto);
     return req('/empresas', { method: 'POST', body: fd });
   },
+  atualizarEmpresa: (id: number, payload: NovaEmpresaPayload) => {
+    const fd = new FormData();
+    fd.append('nome', payload.nome);
+    fd.append('descricao', payload.descricao);
+    if (payload.endereco) fd.append('endereco', payload.endereco);
+    if (payload.latitude != null) fd.append('latitude', String(payload.latitude));
+    if (payload.longitude != null) fd.append('longitude', String(payload.longitude));
+    if (payload.foto) fd.append('foto', payload.foto);
+    return req(`/empresas/${id}`, { method: 'PUT', body: fd });
+  },
 
   resumoStatusEmpresas: (): Promise<ResumoStatusEmpresa[]> => req('/empresas/resumo-status'),
   removerEmpresa: (id: number) => req(`/empresas/${id}`, { method: 'DELETE' }),

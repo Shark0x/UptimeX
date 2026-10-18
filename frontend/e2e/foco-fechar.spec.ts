@@ -34,6 +34,7 @@ test('balão de foco: o × fecha e NÃO reabre (o relógio de 1s recriava o popu
   const balao = page.locator('.tooltip-foco');
   await expect(balao).toBeVisible();
   await expect(balao.getByText('Empresa Alpha')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Street View/i })).toBeVisible();
 
   // Clica no × do balão.
   await page.locator('.tooltip-foco .maplibregl-popup-close-button').click();

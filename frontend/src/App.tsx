@@ -262,8 +262,11 @@ export default function App() {
   }
 
   // Abre o Mapa focado numa empresa (deep link /mapa?empresa=ID em ação).
+  // Number(): o id da empresa vem como STRING do backend; sem coagir, o MapaTV
+  // compara Number(e.id) === focarEmpresaId (número === string) e nunca foca —
+  // era por isso que o "Ver no mapa" do menu 3-pontinhos não funcionava.
   function verNoMapa(empresaId: number) {
-    setFocarEmpresaMapa(empresaId);
+    setFocarEmpresaMapa(Number(empresaId));
     setVista('tv');
   }
 

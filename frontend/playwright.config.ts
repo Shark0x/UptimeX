@@ -3,7 +3,11 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
-  fullyParallel: true,
+  // Sequencial (1 worker): a suíte usa mapas WebGL (MapLibre) sobre o vite dev;
+  // rodar vários Chromium em paralelo contra o mesmo dev server dá timeouts flaky
+  // (os testes passam todos sozinhos). São poucos testes (~26s), não compensa paralelizar.
+  fullyParallel: false,
+  workers: 1,
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],

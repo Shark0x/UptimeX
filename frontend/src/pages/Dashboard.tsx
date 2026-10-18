@@ -97,6 +97,7 @@ export function Dashboard({ onSelecionar, onVerNoMapa }: { onSelecionar: (e: Emp
   const [formAberto, setFormAberto] = useState(false);
   const [foco, setFoco] = useState<{ latitude: number; longitude: number } | null>(null);
   const [empresaRemovendo, setEmpresaRemovendo] = useState<Empresa | null>(null);
+  const [empresaEditando, setEmpresaEditando] = useState<Empresa | null>(null);
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
   const [so30, setSo30] = useState(false);
@@ -290,65 +291,38 @@ export function Dashboard({ onSelecionar, onVerNoMapa }: { onSelecionar: (e: Emp
             {visiveis.map((e) => {
               const r = resumos[e.id];
               return (
-                <button
+                <div
                   key={e.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Abrir empresa ${e.nome}`}
                   onClick={() => onSelecionar(e)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') {
+                      ev.preventDefault();
+                      onSelecionar(e);
+                    }
+                  }}
                   onMouseEnter={() => focarEmpresa(e)}
                   onMouseLeave={() => setFoco(null)}
-                  className="group glass-panel-interactive hud-corners p-4 text-left flex flex-col gap-3 relative"
+                  className="group glass-panel-interactive hud-corners p-4 text-left flex flex-col gap-3 relative cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-500/50"
                 >
                   {resumos[e.id]?.eh_30 && (
                     <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-accent-600/20 border border-accent-500/30 text-accent-400">
                       /30
                     </span>
                   )}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2">
                     <EmpresaContextMenu
                       empresa={e}
                       itens={[
-                        {
-                          label: 'Editar',
-                          icon: '✎',
-                          action: () => {
-                            // TODO: abrir modal de edição
-                            onSelecionar(e);
-                          },
-                        },
-                        {
-                          label: 'Ver no Mapa',
-                          icon: '📍',
-                          action: () => onVerNoMapa?.(e.id),
-                        },
-                        { label: '─────', action: () => {}, disabled: true },
-                        {
-                          label: 'Status',
-                          icon: '○',
-                          action: () => onSelecionar(e),
-                        },
-                        {
-                          label: 'Topologia',
-                          icon: '⚡',
-                          action: () => onSelecionar(e),
-                        },
-                        {
-                          label: 'Link Dedicado',
-                          icon: '🔗',
-                          action: () => onSelecionar(e),
-                        },
-                        {
-                          label: 'Histórico',
-                          icon: '📊',
-                          action: () => onSelecionar(e),
-                        },
+                        { label: 'Ver status', icon: '○', action: () => onSelecionar(e) },
+                        { label: 'Editar empresa', icon: '✎', action: () => setEmpresaEditando(e) },
+                        { label: 'Ver no mapa', icon: '📍', action: () => onVerNoMapa?.(e.id) },
                         ...(isAdmin
                           ? [
                               { label: '─────', action: () => {}, disabled: true },
-                              {
-                                label: 'Remover',
-                                icon: '✕',
-                                action: () => setEmpresaRemovendo(e),
-                                isDangerous: true,
-                              },
+                              { label: 'Remover', icon: '✕', action: () => setEmpresaRemovendo(e), isDangerous: true },
                             ]
                           : []),
                       ]}
@@ -381,7 +355,7 @@ export function Dashboard({ onSelecionar, onVerNoMapa }: { onSelecionar: (e: Emp
                       </span>
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
 
@@ -425,6 +399,17 @@ export function Dashboard({ onSelecionar, onVerNoMapa }: { onSelecionar: (e: Emp
           onRemovida={() => {
             setEmpresaRemovendo(null);
             setFoco(null);
+            carregar();
+          }}
+        />
+      )}
+
+      {empresaEditando && (
+        <EditarEmpresaModal
+          empresa={empresaEditando}
+          onClose={() => setEmpresaEditando(null)}
+          onSalva={() => {
+            setEmpresaEditando(null);
             carregar();
           }}
         />
@@ -635,6 +620,171 @@ function NovaEmpresaModal({ onClose, onCriada }: { onClose: () => void; onCriada
           <button onClick={onClose} className="btn-ghost">Cancelar</button>
           <button onClick={criar} disabled={salvando} className="btn-primary">
             {salvando ? 'Salvando...' : 'Criar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditarEmpresaModal({
+  empresa,
+  onClose,
+  onSalva,
+}: {
+  empresa: Empresa;
+  onClose: () => void;
+  onSalva: () => void;
+}) {
+  const toast = useToast();
+  const [nome, setNome] = useState(empresa.nome);
+  const [descricao, setDescricao] = useState(empresa.descricao ?? '');
+  const [endereco, setEndereco] = useState(empresa.endereco ?? '');
+  // Pré-carrega as coordenadas atuais; só mudam se o operador re-localizar o
+  // endereço. Não zeramos no onChange do endereço (editar o nome não pode
+  // apagar o pino sem querer).
+  const [geo, setGeo] = useState<{ latitude: number; longitude: number; rotulo: string } | null>(
+    empresa.latitude != null && empresa.longitude != null
+      ? { latitude: Number(empresa.latitude), longitude: Number(empresa.longitude), rotulo: empresa.endereco || 'coordenadas atuais' }
+      : null
+  );
+  const [buscandoGeo, setBuscandoGeo] = useState(false);
+  const [geoErro, setGeoErro] = useState('');
+  const [foto, setFoto] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function selecionarArquivo(arquivo: File | null) {
+    setErro('');
+    if (!arquivo) {
+      setFoto(null);
+      setPreviewUrl(null);
+      return;
+    }
+    if (!TIPOS_ACEITOS.includes(arquivo.type)) {
+      setErro('Formato inválido. Use JPEG, PNG ou WebP.');
+      return;
+    }
+    if (arquivo.size > TAMANHO_MAX) {
+      setErro('Arquivo muito grande. Máximo 4MB.');
+      return;
+    }
+    setFoto(arquivo);
+    setPreviewUrl(URL.createObjectURL(arquivo));
+  }
+
+  async function localizar() {
+    if (!endereco.trim()) return;
+    setBuscandoGeo(true);
+    setGeoErro('');
+    try {
+      const resultado = await geocodificarEndereco(endereco.trim());
+      if (resultado) setGeo(resultado);
+      else setGeoErro('Endereço não encontrado. Tente: CEP (ex: "35160-070"), rua + cidade, ou cidade + estado.');
+    } catch {
+      setGeoErro('Falha ao consultar o serviço de mapas.');
+    } finally {
+      setBuscandoGeo(false);
+    }
+  }
+
+  async function salvar() {
+    if (!nome.trim()) return;
+    setSalvando(true);
+    setErro('');
+    try {
+      await api.atualizarEmpresa(empresa.id, {
+        nome,
+        descricao,
+        foto,
+        endereco: endereco.trim() || undefined,
+        latitude: geo?.latitude ?? null,
+        longitude: geo?.longitude ?? null,
+      });
+      toast.sucesso(`Empresa "${nome}" atualizada`);
+      onSalva();
+    } catch {
+      setErro('Não foi possível salvar as alterações.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-deep-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="glass-panel hud-corners p-6 w-full max-w-sm animate-fade-up max-h-[90vh] overflow-y-auto">
+        <p className="eyebrow mb-1">Edição</p>
+        <h2 className="font-display font-semibold text-lg text-slate-100 mb-4">Editar empresa</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="label-field">Nome</label>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome da empresa" className="input" maxLength={150} />
+          </div>
+          <div>
+            <label className="label-field">Descrição (opcional)</label>
+            <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição" className="input" maxLength={255} />
+          </div>
+          <div>
+            <label className="label-field">Endereço da sede (opcional)</label>
+            <div className="flex gap-2">
+              <input
+                value={endereco}
+                onChange={(e) => {
+                  setEndereco(e.target.value);
+                  setGeoErro('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && localizar()}
+                placeholder="CEP (35160-070) ou endereço (Rua, cidade)"
+                className="input"
+                maxLength={255}
+              />
+              <button
+                type="button"
+                onClick={localizar}
+                disabled={buscandoGeo || !endereco.trim()}
+                className="btn-ghost border border-white/10 shrink-0 disabled:opacity-40"
+              >
+                {buscandoGeo ? '…' : 'Localizar'}
+              </button>
+            </div>
+            {geo && (
+              <p className="text-[11px] font-mono text-online/90 mt-1.5 flex items-start gap-1.5">
+                <PinIcon className="text-signal-400 mt-0.5 shrink-0" />
+                <span className="line-clamp-2">{geo.rotulo}</span>
+              </p>
+            )}
+            {geoErro && <p className="text-warn text-[11px] font-mono mt-1.5">{geoErro}</p>}
+          </div>
+          <div>
+            <label className="label-field">Foto do local (deixe em branco pra manter a atual)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => selecionarArquivo(e.target.files?.[0] || null)}
+              className="input file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:bg-signal-600/30 file:text-signal-400 file:text-xs"
+            />
+            {previewUrl ? (
+              <img src={previewUrl} alt="Pré-visualização" className="mt-2 w-full h-32 object-cover rounded-lg border border-white/10" />
+            ) : empresa.foto_url ? (
+              <EmpresaFoto
+                empresaId={empresa.id}
+                alt={empresa.nome}
+                className="mt-2 w-full h-32 object-cover rounded-lg border border-white/10"
+                fallback={<div className="mt-2 w-full h-32 rounded-lg border border-white/10 bg-deep-800" />}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        {erro && <p className="text-offline text-xs mt-3">{erro}</p>}
+
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} className="btn-ghost">Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="btn-primary">
+            {salvando ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
       </div>

@@ -67,7 +67,7 @@ export function MapaEmpresas({
    * com nome + endereço, que fica até o usuário fechar ou focar outra. Separado
    * do `foco` (que só reenquadra) e dos tooltips de hover (que vão e voltam).
    */
-  focoEmpresa?: { latitude: number; longitude: number; nome: string; endereco?: string | null } | null;
+  focoEmpresa?: { id: number; latitude: number; longitude: number; nome: string; endereco?: string | null } | null;
   statusPorEmpresa?: Record<number, StatusMarcador>;
   /** Modo mural/TV: pinos maiores (o mapa continua navegável — arraste/zoom). */
   modoVitrine?: boolean;
@@ -103,6 +103,12 @@ export function MapaEmpresas({
   }, [onFecharFoco]);
   // Popup persistente do deep link: ref própria pra sobreviver ao redraw de 15s
   const focoPopupRef = useRef<maplibregl.Popup | null>(null);
+  // Empresa com o balão de foco aberto — pra o hover do MESMO pino não abrir um
+  // segundo tooltip sobreposto. Ref porque é lida dentro do listener de hover.
+  const focoEmpresaRef = useRef(focoEmpresa);
+  useEffect(() => {
+    focoEmpresaRef.current = focoEmpresa;
+  }, [focoEmpresa]);
   // Lista atual acessível fora do ciclo de render (usada pelo "Reenquadrar")
   const empresasRef = useRef(empresas);
   useEffect(() => {
@@ -232,7 +238,11 @@ export function MapaEmpresas({
           className: 'tooltip-mapa',
         }).setText(`${e.nome} · ${ROTULO_STATUS[status]}`);
         popupsRef.current.push(dica);
-        el.addEventListener('mouseenter', () => dica.setLngLat(coord).addTo(mapa));
+        el.addEventListener('mouseenter', () => {
+          // Não sobrepõe o tooltip de hover ao balão de foco da MESMA empresa
+          if (focoEmpresaRef.current && Number(focoEmpresaRef.current.id) === Number(e.id)) return;
+          dica.setLngLat(coord).addTo(mapa);
+        });
         el.addEventListener('mouseleave', () => dica.remove());
       }
     });
@@ -272,11 +282,8 @@ export function MapaEmpresas({
   // em ref própria, então o redraw de status a cada 15s não o apaga.
   useEffect(() => {
     const mapa = mapaRef.current;
-    if (!mapa) return;
-    // Troca de foco (ou saída) sempre fecha o popup anterior
-    focoPopupRef.current?.remove();
-    focoPopupRef.current = null;
-    if (!focoEmpresa) return;
+    if (!mapa || !focoEmpresa) return;
+    // A remoção do popup anterior fica a cargo do CLEANUP deste effect.
 
     const coord: [number, number] = [focoEmpresa.longitude, focoEmpresa.latitude];
     const endereco = focoEmpresa.endereco?.trim();
@@ -292,6 +299,28 @@ export function MapaEmpresas({
     end.textContent = endereco || 'sem endereço cadastrado';
     box.appendChild(end);
 
+    // Ações (nova aba, stopPropagation pra não mexer no mapa/popup):
+    //  • Street View direto na coordenada (vê a fachada).
+    //  • "No Google Maps" por NOME + ENDEREÇO: o Google resolve o ponto exato da
+    //    empresa registrada (número/prédio certo), não só a rua da coordenada.
+    const acoes = document.createElement('div');
+    acoes.className = 'popup-foco-acoes';
+    const criarLink = (texto: string, href: string) => {
+      const a = document.createElement('a');
+      a.className = 'popup-foco-streetview';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = texto;
+      a.href = href;
+      a.addEventListener('click', (ev) => ev.stopPropagation());
+      acoes.appendChild(a);
+    };
+    const coordStr = `${focoEmpresa.latitude},${focoEmpresa.longitude}`;
+    const consultaMaps = endereco ? `${focoEmpresa.nome}, ${endereco}` : coordStr;
+    criarLink('🛣 Street View', `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${coordStr}`);
+    criarLink('📍 No Google Maps', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consultaMaps)}`);
+    box.appendChild(acoes);
+
     const popup = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: false,
@@ -304,16 +333,14 @@ export function MapaEmpresas({
       .addTo(mapa);
     focoPopupRef.current = popup;
 
-    // Clicar no × dispara 'close': avisamos o pai pra LIMPAR o foco. Sem isso o
-    // próximo render recria o popup e ele "não fecha". O flag impede que o
-    // remove() PROGRAMÁTICO (troca de foco/desmontagem) seja lido como fechar manual.
-    let fechadoPeloCodigo = false;
-    popup.on('close', () => {
-      if (!fechadoPeloCodigo) aoFecharFocoRef.current?.();
-    });
+    // Fecha o FOCO só no clique do usuário no × — ouvimos o botão × direto, em vez
+    // de popup.on('close'). O evento 'close' do MapLibre TAMBÉM dispara em remoções
+    // PROGRAMÁTICAS (troca de foco, redraw de 15s), e aí o balão se fechava sozinho
+    // logo ao abrir (ex.: vindo do "Ver no mapa", com o snapshot já em cache).
+    const btnFechar = popup.getElement()?.querySelector('.maplibregl-popup-close-button');
+    btnFechar?.addEventListener('click', () => aoFecharFocoRef.current?.());
 
     return () => {
-      fechadoPeloCodigo = true;
       popup.remove();
       if (focoPopupRef.current === popup) focoPopupRef.current = null;
     };

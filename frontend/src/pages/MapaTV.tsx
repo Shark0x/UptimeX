@@ -329,7 +329,7 @@ export function MapaTV({ onSair, onAbrirEmpresa, onFecharFoco, focarEmpresaId }:
   const focoEmpresaPopup = useMemo(
     () =>
       empresaFocada && focoCoords
-        ? { ...focoCoords, nome: empresaFocada.nome, endereco: empresaFocada.endereco }
+        ? { id: Number(empresaFocada.id), ...focoCoords, nome: empresaFocada.nome, endereco: empresaFocada.endereco }
         : null,
     [empresaFocada, focoCoords]
   );

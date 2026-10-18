@@ -36,9 +36,15 @@ const timers = new Map<number, NodeJS.Timeout>();
 
 async function verificarStatus(d: Dispositivo): Promise<ResultadoVerificacao> {
   exigirDestinoMonitoramento(d.ip);
-  const comunidade = descriptografarSegredo(d.comunidade_snmp);
+  // A comunidade SNMP só é necessária nos métodos SNMP; decriptamos SOB DEMANDA.
+  // Assim um dispositivo 'ping' segue monitorado mesmo que a comunidade guardada
+  // não decripte (ex.: DATA_ENCRYPTION_KEY trocada) — antes, o decrypt no topo
+  // lançava e QUEBRAVA o ping de TODOS os dispositivos.
+  const obterComunidade = () => descriptografarSegredo(d.comunidade_snmp);
+
   // SNMP puro: sem métricas de ping, só alcance.
   if (d.metodo_monitoramento === 'snmp') {
+    const comunidade = obterComunidade();
     if (!comunidade) throw new Error('Comunidade SNMP nao configurada');
     const snmpRes = await consultarSnmp(d.ip, comunidade, d.porta_snmp);
     return { online: snmpRes.alcancavel, latenciaMs: null, perdaPct: null };
@@ -51,6 +57,7 @@ async function verificarStatus(d: Dispositivo): Promise<ResultadoVerificacao> {
     return { online: true, latenciaMs: m.latenciaMs, perdaPct: m.perdaPct };
   }
   if (d.metodo_monitoramento === 'snmp+ping') {
+    const comunidade = obterComunidade();
     if (!comunidade) throw new Error('Comunidade SNMP nao configurada');
     const snmpRes = await consultarSnmp(d.ip, comunidade, d.porta_snmp);
     if (snmpRes.alcancavel) return { online: true, latenciaMs: null, perdaPct: m.perdaPct };
@@ -152,7 +159,7 @@ async function ciclo(dispositivoId: number, io: SocketServer) {
     const resultado = await verificarStatus(d);
     await processarResultado(d, resultado, io);
   } catch (err) {
-    console.error(`Erro ao verificar dispositivo id=${d.id}.`);
+    console.error(`Erro ao verificar dispositivo id=${d.id}:`, err instanceof Error ? err.message : err);
   }
 
   const timer = setTimeout(() => ciclo(dispositivoId, io), d.intervalo_polling_seg * 1000);
