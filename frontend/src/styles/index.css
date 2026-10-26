@@ -212,6 +212,12 @@ body {
     @apply border-signal-500/40 shadow-glow-signal -translate-y-0.5;
   }
 
+  /* Superfície de modal/diálogo: quase opaca (ao contrário do glass translúcido),
+     pra o texto ficar confortável de ler sobre o painel atrás. Theme-aware. */
+  .modal-panel {
+    @apply relative bg-gradient-to-br from-deep-900/[0.98] to-deep-800/[0.97] backdrop-blur-xl border border-white/10 rounded-2xl shadow-glass;
+  }
+
   /* Cantoneiras HUD — assinatura visual dos elementos de destaque */
   .hud-corners {
     position: relative;

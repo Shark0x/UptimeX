@@ -3,6 +3,8 @@ import { api, buscarMeuAvatar } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { APP_VERSION_ROTULO } from '../version';
 import { TrocarSenhaModal } from './TrocarSenhaModal';
+import { Novidades } from './Novidades';
+import { temNovidade, marcarNovidadesVistas } from '../lib/novidades';
 import { useToast } from './Toast';
 import { TEMAS, Tema, useTema } from '../theme/ThemeContext';
 
@@ -77,6 +79,8 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
   const idxTema = Math.max(0, TEMAS.findIndex((t) => t.id === tema));
   const [aberto, setAberto] = useState(false);
   const [senhaAberta, setSenhaAberta] = useState(false);
+  const [novidadesAberta, setNovidadesAberta] = useState(false);
+  const [temNova, setTemNova] = useState(() => temNovidade());
   const [enviando, setEnviando] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +95,19 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
     return () => document.removeEventListener('pointerdown', aoClicarFora);
   }, [aberto]);
 
+  // Pop-up automático: ao carregar o topo autenticado, abre as novidades uma
+  // única vez quando há uma versão nova que o usuário ainda não viu.
+  useEffect(() => {
+    if (temNovidade()) setNovidadesAberta(true);
+  }, []);
+
   if (!usuario) return null;
+
+  function fecharNovidades() {
+    marcarNovidadesVistas();
+    setTemNova(false);
+    setNovidadesAberta(false);
+  }
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
@@ -126,7 +142,15 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
         aria-expanded={aberto}
         title="Meu perfil"
       >
-        <Avatar nome={usuario.username} versao={usuario.avatar_url} tamanho={34} />
+        <span className="relative shrink-0">
+          <Avatar nome={usuario.username} versao={usuario.avatar_url} tamanho={34} />
+          {temNova && (
+            <span
+              aria-hidden
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-signal-400 ring-2 ring-deep-900 shadow-glow-signal"
+            />
+          )}
+        </span>
         <div className="text-right hidden sm:block leading-tight">
           <p className="text-sm text-slate-200 group-hover:text-white transition-colors">{usuario.username}</p>
           <p className="text-[10px] uppercase tracking-widest text-muted font-mono">{usuario.role}</p>
@@ -157,6 +181,17 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" />
               </svg>
               {enviando ? 'Enviando…' : 'Trocar avatar'}
+            </button>
+            <button
+              onClick={() => { setAberto(false); setNovidadesAberta(true); }}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-white/[0.06] transition-colors flex items-center gap-2.5"
+            >
+              <svg className="w-4 h-4 text-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                <path d="M19 14l.7 1.9L21.5 16.5l-1.8.6L19 19l-.7-1.9L16.5 16.5l1.8-.6L19 14z" />
+              </svg>
+              <span className="flex-1">Novidades</span>
+              {temNova && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-signal-400 shadow-glow-signal" />}
             </button>
             <button
               onClick={() => { setAberto(false); setSenhaAberta(true); }}
@@ -218,6 +253,7 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
       )}
 
       {senhaAberta && <TrocarSenhaModal onClose={() => setSenhaAberta(false)} />}
+      {novidadesAberta && <Novidades onClose={fecharNovidades} />}
     </div>
   );
 }
