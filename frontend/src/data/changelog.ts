@@ -27,6 +27,30 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    versao: '1.5.0',
+    data: '2026-11-17',
+    titulo: 'Centro de Operação reorganizado',
+    destaque:
+      'A Visão Macro agora abre com um veredito único e já mostra, no topo, quais empresas precisam de atenção — da mais crítica para a menos.',
+    mudancas: [
+      {
+        tipo: 'melhoria',
+        texto:
+          'Novo painel do Centro de Operação: um veredito claro ("X empresas em queda") no lugar de vários números competindo.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'As empresas que caíram aparecem direto no topo do painel, da mais crítica para a menos, a um clique do diagnóstico.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Uma única fita de saúde da frota substitui o gráfico de rosca, e os totais de empresas e de dispositivos ficam separados, sem ambiguidade.',
+      },
+    ],
+  },
+  {
     versao: '1.4.1',
     data: '2026-11-17',
     titulo: 'Telemetria de conectividade restaurada',

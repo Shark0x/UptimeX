@@ -219,121 +219,80 @@ function AvatarEmpresa({ empresa, status }: { empresa: ResumoStatusEmpresa; stat
   );
 }
 
-function ComposicaoFrota({ itens }: { itens: EmpresaClassificada[] }) {
-  const totais = itens.reduce(
-    (acc, { e }) => {
-      acc.online += Number(e.online);
-      acc.offline += Number(e.offline);
-      acc.degradado += Number(e.degradados);
-      acc.desconhecido += Number(e.desconhecidos);
-      return acc;
-    },
-    { online: 0, offline: 0, degradado: 0, desconhecido: 0 }
-  );
+// Resumo da frota por EMPRESA (quantas estão no ar / em queda / em atenção / sem
+// monitoramento). A granularidade de dispositivo vai pro rodapé do deck — manter
+// os dois totais separados foi o que tirou a confusão de "113 vs 146".
+type ResumoFrota = { online: number; offline: number; degradado: number; semMonitor: number };
 
-  const total = totais.online + totais.offline + totais.degradado + totais.desconhecido;
+function FitaSaude({ resumo, total }: { resumo: ResumoFrota; total: number }) {
   const segmentos = [
-    { status: 'online' as const, rotulo: 'Online', valor: totais.online },
-    { status: 'offline' as const, rotulo: 'Offline', valor: totais.offline },
-    { status: 'degradado' as const, rotulo: 'Degradado', valor: totais.degradado },
-    { status: 'desconhecido' as const, rotulo: 'Sem resposta', valor: totais.desconhecido },
-  ].map((segmento) => ({
-    ...segmento,
-    percentual: total > 0 ? (segmento.valor / total) * 100 : 0,
-  }));
-
-  let cursor = 0;
-  const arcos = segmentos.map((segmento) => {
-    const inicio = cursor;
-    cursor += segmento.percentual;
-    const intervalo = Math.max(0, segmento.percentual - (segmento.percentual > 1.5 ? 0.8 : 0));
-    return { ...segmento, inicio, intervalo };
-  });
-
+    { k: 'online', cls: 'macro-fleet-bar--online', val: resumo.online, rot: 'no ar' },
+    { k: 'offline', cls: 'macro-fleet-bar--offline', val: resumo.offline, rot: 'em queda' },
+    { k: 'degradado', cls: 'macro-fleet-bar--degradado', val: resumo.degradado, rot: 'atenção' },
+    { k: 'sem', cls: 'macro-fleet-bar--desconhecido', val: resumo.semMonitor, rot: 'sem monitor' },
+  ];
+  const presentes = segmentos.filter((s) => s.val > 0);
   const descricao = total > 0
-    ? `${total} dispositivos no total: ${totais.online} online, ${totais.offline} offline, ${totais.degradado} degradados e ${totais.desconhecido} sem resposta.`
-    : 'Nenhum dispositivo monitorado na frota.';
+    ? presentes.map((s) => `${s.val} ${s.rot}`).join(', ')
+    : 'Nenhuma empresa monitorada.';
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-deep-950/20 p-3.5 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-300">Composição da frota</p>
-          <p className="mt-0.5 text-xs text-muted">Todos os dispositivos de todas as empresas</p>
-        </div>
-        <span className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 font-mono text-[10px] tabular-nums text-slate-300">
-          <strong className="text-online">{totais.online} online</strong>
-          <span className="px-1.5 text-white/20">·</span>
-          <strong className="text-offline">{totais.offline} offline</strong>
-        </span>
+    <div>
+      <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-md bg-white/[0.04]" role="img" aria-label={descricao}>
+        {total > 0 && presentes.map((s) => (
+          <span key={s.k} className={`block h-full ${s.cls}`} style={{ width: `${(s.val / total) * 100}%` }} />
+        ))}
       </div>
-
-      <div className="grid items-center gap-4 sm:grid-cols-[9.5rem_minmax(0,1fr)]">
-        <div className="macro-fleet-chart relative mx-auto h-36 w-36" role="img" aria-label={descricao}>
-          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
-            <circle className="macro-fleet-track" cx="50" cy="50" r="41" pathLength="100" />
-            {total > 0 && arcos.map((segmento) => (
-              <circle
-                key={segmento.status}
-                className={`macro-fleet-segment macro-fleet-segment--${segmento.status}`}
-                cx="50"
-                cy="50"
-                r="41"
-                pathLength="100"
-                strokeDasharray={`${segmento.intervalo} ${100 - segmento.intervalo}`}
-                strokeDashoffset={-segmento.inicio}
-              />
-            ))}
-          </svg>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <strong className="font-titulo text-4xl leading-none tabular-nums text-white">{total}</strong>
-            <span className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-muted">dispositivos</span>
-          </div>
-        </div>
-
-        <div className="min-w-0">
-          <dl className="grid grid-cols-2 gap-2" aria-label="Quantidade de dispositivos por estado">
-            {segmentos.map(({ status, rotulo, valor, percentual }) => (
-              <div key={status} className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-2">
-                <dt className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
-                  <StatusGlyph status={status} className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{rotulo}</span>
-                </dt>
-                <dd className="mt-1 flex items-end justify-between gap-2">
-                  <strong className={`font-titulo text-2xl leading-none tabular-nums ${STATUS[status].texto}`}>{valor}</strong>
-                  <span className="font-mono text-[9px] tabular-nums text-muted">{Math.round(percentual)}%</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-white/[0.05]" aria-hidden>
-            {segmentos.map(({ status, percentual }) => (
-              percentual > 0 && (
-                <span
-                  key={status}
-                  className={`macro-fleet-bar macro-fleet-bar--${status}`}
-                  style={{ width: `${percentual}%` }}
-                />
-              )
-            ))}
-          </div>
-        </div>
-      </div>
+      <ul className="mt-3.5 flex flex-wrap gap-x-5 gap-y-2">
+        {segmentos.map((s) => (
+          <li key={s.k} className="inline-flex items-center gap-2 font-mono text-[11px] tabular-nums text-slate-300">
+            <span className={`h-2 w-2 shrink-0 rounded-sm ${s.cls}`} aria-hidden />
+            <strong className="font-semibold text-slate-100">{s.val}</strong>&nbsp;{s.rot}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function KpiOperacional({ rotulo, valor, detalhe, status }: { rotulo: string; valor: number | string; detalhe: string; status?: StatusEmpresa }) {
+// Cartão compacto de uma empresa que exige ação, no próprio deck. Clicar abre a
+// empresa (mesmo fluxo do grid). A "queda vira ação": o operador vai do veredito
+// direto ao diagnóstico, sem rolar.
+function CartaoCritico({ item, agora, onSelecionar }: { item: EmpresaClassificada; agora: number; onSelecionar: (e: Empresa) => void }) {
+  const { e, status } = item;
+  const queda = status === 'offline' ? tempoDeQueda(e.offline_desde, agora) : null;
+
   return (
-    <div className="min-w-0 border-l border-white/10 pl-3 sm:pl-4">
-      <div className="flex items-center gap-1.5">
-        {status && <StatusGlyph status={status} className="h-3.5 w-3.5" />}
-        <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">{rotulo}</p>
-      </div>
-      <p className={`mt-1 font-titulo text-3xl leading-none tabular-nums ${status ? STATUS[status].texto : 'text-slate-100'}`}>{valor}</p>
-      <p className="mt-1 truncate text-[10px] text-muted">{detalhe}</p>
-    </div>
+    <button
+      type="button"
+      onClick={() => onSelecionar({ id: e.id, nome: e.nome, foto_url: e.foto_url, endereco: e.endereco })}
+      data-status={status}
+      className="macro-company-card group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-white/[0.08] p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-400 focus-visible:ring-offset-2 focus-visible:ring-offset-deep-950"
+      aria-label={`Abrir ${e.nome}. Status: ${STATUS[status].rotulo}.`}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${STATUS[status].trilho}`} aria-hidden />
+      <AvatarEmpresa empresa={e} status={status} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-grotesk text-[13.5px] font-semibold text-slate-100">{e.nome}</span>
+        <span className="mt-1 flex items-center gap-2">
+          {status === 'offline' ? (
+            <span className="rounded border border-signal-500/30 bg-signal-600/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tabular-nums text-[rgb(var(--badge-offline-fg))]">
+              {Number(e.offline)} fora
+            </span>
+          ) : (
+            <span className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tabular-nums text-[rgb(var(--badge-degradado-fg))]">
+              {Number(e.degradados)} {Number(e.degradados) === 1 ? 'lento' : 'lentos'}
+            </span>
+          )}
+          {queda && <span className="font-mono text-[10.5px] tabular-nums text-muted">{queda}</span>}
+        </span>
+      </span>
+      <span className="shrink-0 text-muted transition-colors duration-200 group-hover:text-slate-100" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12h13M13 6l6 6-6 6" />
+        </svg>
+      </span>
+    </button>
   );
 }
 
@@ -534,8 +493,6 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
             ? 'desconhecido'
             : 'online';
 
-  const percentualResposta = resumo.enlacesTotal > 0 ? Math.round((resumo.enlacesRespondendo / resumo.enlacesTotal) * 100) : 0;
-
   const opcoesFiltro: { valor: FiltroStatus; rotulo: string; total: number }[] = [
     { valor: 'todos', rotulo: 'Todas', total: ordenadas.length },
     { valor: 'offline', rotulo: 'Queda', total: resumo.offline },
@@ -592,17 +549,27 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
     },
   ].filter((secao) => secao.itens.length > 0);
 
-  const chamadaEstado = !carregado
-    ? 'AGUARDANDO LEITURA'
+  // Veredito-herói: um número grande + palavra quando há incidente; só a palavra
+  // quando não há. Substitui o antigo cartaz único por algo que diz "quão ruim" num
+  // relance. O \n quebra a palavra em duas linhas no cartaz (Bebas Neue).
+  const veredito: { num: number | null; palavra: string } = !carregado
+    ? { num: null, palavra: 'aguardando\nleitura' }
     : estado === 'offline'
-      ? `${resumo.offline} ${resumo.offline === 1 ? 'EMPRESA EM QUEDA' : 'EMPRESAS EM QUEDA'}`
+      ? { num: resumo.offline, palavra: resumo.offline === 1 ? 'empresa\nem queda' : 'empresas\nem queda' }
       : estado === 'degradado'
-        ? `${resumo.degradado} ${resumo.degradado === 1 ? 'EMPRESA EM ATENÇÃO' : 'EMPRESAS EM ATENÇÃO'}`
+        ? { num: resumo.degradado, palavra: resumo.degradado === 1 ? 'empresa\nem atenção' : 'empresas\nem atenção' }
         : estado === 'desconhecido'
-          ? 'TELEMETRIA PARCIAL'
+          ? { num: null, palavra: 'telemetria\nparcial' }
           : estado === 'vazio'
-            ? 'SEM EMPRESAS MONITORADAS'
-            : 'FROTA ESTÁVEL';
+            ? { num: null, palavra: 'sem empresas\nmonitoradas' }
+            : { num: null, palavra: 'frota\nestável' };
+
+  // Empresas que exigem ação agora (quedas + degradações), pior primeiro — já vêm
+  // ordenadas por severidade. O deck mostra as mais críticas como atalho; o grid
+  // abaixo tem a lista completa e os filtros.
+  const criticas = ordenadas
+    .filter((i) => i.status === 'offline' || i.status === 'degradado')
+    .slice(0, 6);
 
   const contextoEstado = !carregado
     ? 'Sincronizando o primeiro retrato da operação.'
@@ -618,55 +585,117 @@ export function PainelMacro({ onSelecionar }: { onSelecionar: (e: Empresa) => vo
 
   return (
     <main className="relative h-full overflow-y-auto pb-8" aria-busy={atualizando}>
-      <section className={`macro-command-deck hud-corners mb-5 overflow-hidden rounded-2xl border ${estado === 'offline' ? 'border-signal-500/35' : 'border-white/[0.08]'}`}>
-        <div className="relative z-10 grid gap-5 p-4 sm:p-5 lg:grid-cols-12 lg:gap-6 lg:p-6">
-          <div className="flex min-w-0 flex-col justify-between lg:col-span-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal-400">uptimeX · centro de operação</p>
-              <span className="lg:hidden">
-                <StatusBadge status={estado} />
+      <section
+        className={`macro-command-deck hud-corners mb-5 overflow-hidden rounded-2xl border ${estado === 'offline' ? 'border-signal-500/35' : 'border-white/[0.08]'}`}
+        data-estado={estado}
+      >
+        <div className="relative z-10 p-4 sm:p-5 lg:p-6">
+          {/* topo: marca + pulso "ao vivo" (vermelho quando há queda) */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal-400">uptimeX · centro de operação</p>
+            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted" aria-live="polite">
+              <span className="relative flex h-2 w-2">
+                {!erro && <span className={`absolute inline-flex h-full w-full rounded-full animate-sonar ${estado === 'offline' ? 'bg-offline/50' : 'bg-online/40'}`} />}
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${erro || estado === 'offline' ? 'bg-offline' : 'bg-online'}`} />
               </span>
-            </div>
+              {erro ? 'último retrato preservado' : `ao vivo · atualizado ${tempoRelativo(agora - atualizadoEm)}`}
+            </span>
+          </div>
 
-            <div className="mt-8 sm:mt-10 lg:mt-12">
-              <div className="mb-3 flex items-center gap-3">
-                <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${STATUS[estado].badge}`}>
-                  <StatusGlyph status={estado} className="h-6 w-6" />
+          <div className="grid gap-8 lg:grid-cols-12 lg:gap-12">
+            {/* VEREDITO — um só foco à esquerda */}
+            <div className="min-w-0 lg:col-span-5">
+              <div className="mb-6 flex items-center gap-3 sm:mb-10">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${STATUS[estado].badge}`}>
+                  <StatusGlyph status={estado} className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Veredito da operação</p>
                   <p className={`font-mono text-xs uppercase tracking-wider ${STATUS[estado].texto}`}>{STATUS[estado].rotulo}</p>
                 </div>
               </div>
-              <h1 className="max-w-2xl font-titulo text-5xl leading-[0.88] tracking-[0.018em] text-slate-100 sm:text-6xl xl:text-7xl">
-                {chamadaEstado}
-              </h1>
-              <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-300">{contextoEstado}</p>
-            </div>
-          </div>
 
-          <div className="flex min-w-0 flex-col gap-4 lg:col-span-7">
-            <div className="hidden justify-end lg:flex">
-              <StatusBadge status={estado} />
+              <h1 className="flex items-start gap-3 leading-[0.82] sm:gap-4">
+                {veredito.num != null && (
+                  <span className={`font-titulo text-[84px] leading-[0.78] tabular-nums sm:text-[120px] ${estado === 'offline' ? 'text-white [text-shadow:0_0_34px_rgba(255,43,58,0.34)]' : 'text-slate-100'}`}>
+                    {veredito.num}
+                  </span>
+                )}
+                <span className="whitespace-pre-line pt-1.5 font-titulo text-[30px] leading-[0.86] tracking-[0.015em] text-slate-200 sm:text-[46px]">
+                  {veredito.palavra}
+                </span>
+              </h1>
+
+              <p className="mt-5 max-w-sm text-sm leading-relaxed text-slate-300">{contextoEstado}</p>
+
+              {(resumo.offline > 0 || resumo.degradado > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltro(resumo.offline > 0 ? 'offline' : 'degradado');
+                    setPagina(1);
+                  }}
+                  className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 font-mono text-[11px] uppercase tracking-[0.1em] text-slate-200 transition-colors duration-200 hover:border-signal-500/55 hover:bg-signal-600/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
+                >
+                  {resumo.offline > 0 ? 'Ver todas as quedas' : 'Ver atenções'} <span aria-hidden>→</span>
+                </button>
+              )}
             </div>
-            <ComposicaoFrota itens={ordenadas} />
-            <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-4">
-              <KpiOperacional rotulo="Respondendo" valor={`${percentualResposta}%`} detalhe={`${resumo.enlacesRespondendo}/${resumo.enlacesTotal} enlaces`} />
-              <KpiOperacional rotulo="Quedas" valor={resumo.offline} detalhe={`${resumo.dispositivosOffline} dispositivos`} status="offline" />
-              <KpiOperacional rotulo="Atenção" valor={resumo.degradado} detalhe={`${resumo.dispositivosDegradados} enlaces`} status="degradado" />
-              <KpiOperacional rotulo="No ar" valor={resumo.online} detalhe={`${ordenadas.length} empresas na frota`} status="online" />
+
+            {/* FROTA: uma fita de saúde + as empresas que exigem ação */}
+            <div className="flex min-w-0 flex-col gap-7 lg:col-span-7">
+              <div>
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.17em] text-muted">Saúde da frota</p>
+                  <p className="font-mono text-xs tabular-nums text-slate-300">
+                    <strong className="font-semibold text-slate-100">{resumo.online}</strong>/{ordenadas.length} empresas no ar
+                  </p>
+                </div>
+                <FitaSaude resumo={resumo} total={ordenadas.length} />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.17em] text-muted">Precisam de você agora</p>
+                  {criticas.length > 0 && (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-signal-400">
+                      {criticas.length} {criticas.length === 1 ? 'ativo' : 'ativos'} · pior primeiro
+                    </span>
+                  )}
+                </div>
+                {criticas.length === 0 ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-dashed border-online/25 bg-online/[0.03] px-4 py-4">
+                    <StatusGlyph status="online" className="h-5 w-5 shrink-0" />
+                    <p className="text-[13px] text-slate-300">
+                      <strong className="font-semibold text-slate-100">Nada pendente.</strong> Nenhuma empresa precisa de ação — a lista aparece aqui no instante em que algo cair.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {criticas.map((item) => (
+                      <CartaoCritico key={item.e.id} item={item} agora={agora} onSelecionar={onSelecionar} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] bg-deep-950/15 px-4 py-3 sm:px-5 lg:px-6">
-          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted" aria-live="polite">
-            <span className="relative flex h-2 w-2">
-              {!erro && <span className="absolute inline-flex h-full w-full rounded-full bg-online/40 animate-sonar" />}
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${erro ? 'bg-offline' : 'bg-online'}`} />
-            </span>
-            {erro ? 'último retrato preservado' : `atualizado ${tempoRelativo(agora - atualizadoEm)}`}
-          </span>
+        {/* rodapé: os dois totais honestos (empresa × dispositivo) + atualizar */}
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] bg-deep-950/20 px-4 py-3 sm:px-5 lg:px-6">
+          <p className="font-mono text-[11px] tabular-nums text-muted">
+            <strong className="font-semibold text-slate-100">{ordenadas.length}</strong> empresas na frota
+            <span className="px-2 text-slate-100">·</span>
+            <strong className="font-semibold text-slate-100">{resumo.enlacesTotal}</strong> dispositivos monitorados
+            {resumo.enlacesTotal > 0 && (
+              <span>
+                {' '}({resumo.enlacesRespondendo} no ar
+                {resumo.dispositivosOffline > 0 ? ` · ${resumo.dispositivosOffline} fora` : ''}
+                {resumo.dispositivosDegradados > 0 ? ` · ${resumo.dispositivosDegradados} lentos` : ''})
+              </span>
+            )}
+          </p>
           <button
             type="button"
             onClick={carregar}

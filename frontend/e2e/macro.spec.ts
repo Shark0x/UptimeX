@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { APP_VERSION } from '../src/data/changelog';
 
 const empresas = [
   { id: 1, nome: 'Backbone Norte', endereco: 'PoP Centro · Fortaleza', foto_url: null, total: 6, online: 3, offline: 3, degradados: 0, desconhecidos: 0, links_dedicados: 2, offline_desde: new Date(Date.now() - 86 * 60_000).toISOString() },
@@ -58,6 +59,16 @@ test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ 
   // O redesign moveu o landing pós-login pra Home (DashboardHome, que busca
   // /api/dashboard — não resumo-status). Entramos direto na rota /macro: após o
   // login o App já renderiza o PainelMacro, que é quem busca o resumo-status.
+  // O pop-up automático de Novidades (versão nova) sobrepõe a UI e intercepta
+  // cliques num navegador zerado. Marcar a versão atual como "vista" antes de
+  // carregar mantém o teste determinístico.
+  await page.addInitScript((v) => {
+    try {
+      localStorage.setItem('uptimex_novidades_vista', v);
+    } catch {
+      /* modo privado: sem persistência */
+    }
+  }, APP_VERSION);
   await page.goto('/macro');
   await page.locator('#login-usuario').fill('noc.visual');
   await page.locator('#login-senha').fill('teste-visual-seguro');
@@ -66,10 +77,11 @@ test('visão macro prioriza incidentes e mantém o layout responsivo', async ({ 
   await primeiroResumo;
 
   await expect(page.getByRole('heading', { name: '3 EMPRESAS EM QUEDA' })).toBeVisible({ timeout: 900 });
-  await expect(page.getByText('Composição da frota')).toBeVisible();
-  await expect(page.getByText('47 online', { exact: true })).toBeVisible();
-  await expect(page.getByText('6 offline', { exact: true })).toBeVisible();
-  await expect(page.getByText('59', { exact: true }).first()).toBeVisible();
+  // Deck redesenhado: fita de saúde + lista "precisam de você agora" + os dois
+  // totais (empresa × dispositivo) separados no rodapé (no lugar do donut antigo).
+  await expect(page.getByText('Saúde da frota')).toBeVisible();
+  await expect(page.getByText('Precisam de você agora')).toBeVisible();
+  await expect(page.getByText(/dispositivos monitorados/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Exigem ação' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Operação estável' })).toBeVisible();
 
