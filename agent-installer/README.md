@@ -9,10 +9,12 @@ nao instala agentes em switches/impressoras.
 Requer Git e Python 3.9+. Na maquina que sera monitorada:
 
 ```sh
-git clone https://github.com/Shark0x/UptimeX.git
+git clone --branch redesign-ui/20261014-212102 --single-branch https://github.com/Shark0x/UptimeX.git
 cd UptimeX
 python3 agent-installer/install.py
 ```
+
+Para a primeira avaliação, siga [o roteiro de teste](TESTE.md).
 
 O assistente pede o IPv4 do coletor, usuario e metricas. Sem `--apply`, mostra
 somente a previa. Para instalar, com confirmacao antes das alteracoes:

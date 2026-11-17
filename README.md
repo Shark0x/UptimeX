@@ -20,6 +20,24 @@ uptimeX combines availability monitoring, latency and packet-loss history, inter
 
 ## Recommended installation: automatic Docker setup
 
+### Agente SNMP separado — versão de teste
+
+Para preparar apenas o servidor monitorado, sem instalar a central ou Docker,
+use o [roteiro de teste do agente](agent-installer/TESTE.md).
+A versão de teste está na branch `redesign-ui/20261014-212102`:
+
+```bash
+git clone --branch redesign-ui/20261014-212102 --single-branch https://github.com/Shark0x/UptimeX.git
+cd UptimeX
+python3 agent-installer/install.py --nms 38.156.3.77
+# Após revisar a prévia, em uma VM Linux de teste:
+sudo python3 agent-installer/install.py --nms 38.156.3.77 --apply
+```
+
+O IP acima é o coletor atual; ajuste se a conexão usar VPN/NAT diferente.
+Linux suportado instala SNMPv3; Windows oferece somente prévia.
+O cadastro das credenciais no uptimeX é manual.
+
 To prepare a monitored server with the separate Python SNMP agent, see
 [the agent installer](agent-installer/README.md). The uptimeX profile menu includes
 **Agente uptimeX** with Windows and Linux downloads when packages have been built

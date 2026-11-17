@@ -43,7 +43,7 @@ def main():
     source = dist / 'uptimeX-Agent-Python.zip'
     # Lista explicita: nunca inclui .venv, arquivos de estado ou credenciais.
     with zipfile.ZipFile(source, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for name in ('install.py', 'gui.py', 'README.md'):
+        for name in ('install.py', 'gui.py', 'README.md', 'TESTE.md'):
             archive.write(ROOT / name, 'uptimeX-agent/' + name)
         for name in ('uptimex.ico', 'uptimex.png'):
             if (ROOT / 'assets' / name).exists():
