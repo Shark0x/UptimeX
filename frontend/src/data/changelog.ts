@@ -27,6 +27,59 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    versao: '1.4.1',
+    data: '2026-11-17',
+    titulo: 'Telemetria de conectividade restaurada',
+    destaque:
+      'Dispositivos monitorados por ping voltam a exibir o histórico de conectividade (latência, perda e disponibilidade) direto no painel de status.',
+    mudancas: [
+      {
+        tipo: 'correcao',
+        texto:
+          'Ao abrir um dispositivo monitorado por ping no painel de status, o gráfico de telemetria (latência/perda/uptime) aparece novamente — inclusive em equipamentos que ainda tinham credenciais SNMP antigas gravadas.',
+      },
+    ],
+  },
+  {
+    versao: '1.4.0',
+    data: '2026-11-17',
+    titulo: 'Assistente do agente uptimeX',
+    destaque: 'Baixe o assistente SNMP pelo menu do perfil e prepare seus servidores para monitoramento.',
+    mudancas: [
+      { tipo: 'novo', texto: 'Downloads do agente uptimeX no menu do perfil, com pacote Python para Linux e assistente Windows.' },
+      { tipo: 'novo', texto: 'Assistente com seleção de métricas, prévia da configuração e apresentação no terminal Linux.' },
+      { tipo: 'melhoria', texto: 'Executável Windows com o ícone do uptimeX. Nesta versão, a aplicação automática está disponível apenas no Linux compatível.' },
+    ],
+  },
+  {
+    versao: '1.3.1',
+    data: '2026-11-16',
+    titulo: 'Métricas de Servidores (CPU & Memória) via SNMP',
+    destaque:
+      'Coleta automática de CPU, memória RAM e armazenamento de servidores e appliances via HOST-RESOURCES-MIB (RFC 2790) e fallbacks.',
+    mudancas: [
+      { tipo: 'novo', texto: 'Coleta de uso de CPU (%) em múltiplos núcleos e carga média por SNMP.' },
+      { tipo: 'novo', texto: 'Coleta de memória RAM física (total, usada e percentual) e armazenamento de disco.' },
+      { tipo: 'novo', texto: 'Série temporal e gráfico de histórico de CPU e Memória no painel do dispositivo.' },
+      { tipo: 'melhoria', texto: 'Suporte universal a servidores Linux (net-snmp), Windows Server, VMware ESXi, MikroTik e Cisco.' },
+    ],
+  },
+  {
+    versao: '1.3.0',
+    data: '2026-11-06',
+    titulo: 'Engine SNMP nativa',
+    destaque:
+      'O uptimeX agora coleta SNMP direto dos equipamentos — interfaces, tráfego em tempo real e uptime — sem depender de Zabbix.',
+    mudancas: [
+      { tipo: 'novo', texto: 'Coleta SNMP nativa (v2c e v3) de interfaces, tráfego (bps/Mbps/Gbps) e uptime dos equipamentos.' },
+      { tipo: 'novo', texto: 'Painel de interfaces e gráfico de tráfego por interface no detalhe do dispositivo, com botão "Coletar agora".' },
+      { tipo: 'novo', texto: 'Aviso de "coleta atrasada" quando o equipamento não responde no tempo previsto.' },
+      { tipo: 'melhoria', texto: 'Monitoramento híbrido: equipamentos sem SNMP seguem monitorados por ping normalmente.' },
+      { tipo: 'melhoria', texto: 'Polling mais resiliente: um timeout nunca interrompe os ciclos e edições não geram coletas concorrentes.' },
+      { tipo: 'seguranca', texto: 'Credenciais SNMP (comunidade v2c e senhas v3) guardadas cifradas por dispositivo.' },
+    ],
+  },
+  {
     versao: '1.2.0',
     data: '2026-10-26',
     titulo: 'Central de Novidades',

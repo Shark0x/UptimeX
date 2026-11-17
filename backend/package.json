@@ -1,7 +1,7 @@
 {
   "name": "netmonitor-backend",
-  "version": "1.1.0",
-  "description": "Motor de monitoramento SNMP/ICMP multi-empresa - substituto moderno do Dude",
+  "version": "1.4.1",
+  "description": "Motor de monitoramento SNMP nativo + ICMP para ISPs - substituto moderno do Dude",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

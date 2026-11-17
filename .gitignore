@@ -34,3 +34,8 @@ CLAUDE.md
 frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
+
+# Pacotes gerados pelo instalador; gerar antes do build do frontend.
+frontend/public/downloads/*.exe
+frontend/public/downloads/*.zip
+frontend/public/downloads/agent-manifest.json

@@ -116,6 +116,15 @@ export const criarDispositivoSchema = z.object({
   comunidade_snmp: z.string().trim().max(100).optional(),
   porta_snmp: portaSnmp.optional(),
   intervalo_polling_seg: z.coerce.number().int().min(5).max(3600).optional(),
+  // Credenciais SNMPv3 (opcionais; v2c usa comunidade_snmp). As senhas auth/priv
+  // são cifradas no backend (AES-GCM). Usadas pela engine SNMP de métricas.
+  snmp_versao: z.enum(['v2c', 'v3']).optional(),
+  snmp_usuario: z.string().trim().max(100).optional().or(z.literal('')),
+  snmp_nivel: z.enum(['noAuthNoPriv', 'authNoPriv', 'authPriv']).optional(),
+  snmp_auth_protocolo: z.enum(['md5', 'sha', 'sha224', 'sha256', 'sha384', 'sha512']).optional().or(z.literal('')),
+  snmp_auth_senha: z.string().max(200).optional().or(z.literal('')),
+  snmp_priv_protocolo: z.enum(['des', 'aes', 'aes256b', 'aes256r']).optional().or(z.literal('')),
+  snmp_priv_senha: z.string().max(200).optional().or(z.literal('')),
 });
 
 export const editarDispositivoSchema = criarDispositivoSchema.omit({ empresa_id: true }).extend({

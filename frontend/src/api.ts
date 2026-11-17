@@ -151,6 +151,9 @@ export interface Dispositivo {
   fabricante: string;
   metodo_monitoramento: 'snmp' | 'ping' | 'snmp+ping';
   comunidade_snmp_configurada: boolean;
+  snmp_versao?: 'v2c' | 'v3';
+  snmp_usuario?: string | null;
+  snmp_v3_configurado?: boolean;
   porta_snmp: number;
   intervalo_polling_seg: number;
   status_atual: 'online' | 'offline' | 'desconhecido';
@@ -176,6 +179,65 @@ export interface PingHistoryPoint {
   packet_loss_pct: number;
   uptime_pct: number;
   degraded_pct: number;
+}
+
+// ---- SNMP (engine nativa de métricas) ----
+export interface SnmpEstado {
+  status: 'ok' | 'erro' | 'stale' | 'sem_credencial' | 'pendente';
+  sys_uptime_ticks: number | null;
+  sys_descr: string | null;
+  sys_name: string | null;
+  ultima_coleta_at: string | null;
+  ultimo_sucesso_at: string | null;
+  falhas_consecutivas: number;
+  erro: string | null;
+  total_interfaces: number;
+  atrasada: boolean;
+  cpu_pct?: number | null;
+  cpu_cores?: number | null;
+  memoria_uso_bytes?: number | null;
+  memoria_total_bytes?: number | null;
+  memoria_pct?: number | null;
+  disco_uso_bytes?: number | null;
+  disco_total_bytes?: number | null;
+  disco_pct?: number | null;
+}
+
+export interface SnmpRecursosAmostra {
+  timestamp: string;
+  cpu_pct: number | null;
+  cpu_cores: number | null;
+  memoria_pct: number | null;
+  memoria_uso_bytes: number | null;
+  memoria_total_bytes: number | null;
+  disco_pct: number | null;
+  disco_uso_bytes: number | null;
+  disco_total_bytes: number | null;
+}
+
+export interface SnmpInterface {
+  if_index: number;
+  if_descr: string | null;
+  if_name: string | null;
+  if_alias: string | null;
+  if_type: number | null;
+  capacidade_bps: number | null;
+  admin_status: number | null;
+  oper_status: number | null;
+  in_bps: number | null;
+  out_bps: number | null;
+  last_sample_at: string | null;
+  atualizado_em: string | null;
+}
+
+export interface SnmpAmostra {
+  timestamp: string;
+  in_bps: number | null;
+  out_bps: number | null;
+  in_err_pps: number | null;
+  out_err_pps: number | null;
+  in_disc_pps: number | null;
+  out_disc_pps: number | null;
 }
 
 export interface QuedaRelatorio {
@@ -431,6 +493,16 @@ export const api = {
   editarDispositivo: (id: number, payload: Partial<Dispositivo>) =>
     req(`/dispositivos/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   removerDispositivo: (id: number) => req(`/dispositivos/${id}`, { method: 'DELETE' }),
+
+  // SNMP nativo: estado da coleta, interfaces, histórico de tráfego, histórico de recursos e coleta sob demanda.
+  snmpEstado: (id: number): Promise<SnmpEstado> => req(`/snmp/dispositivo/${id}/estado`),
+  snmpInterfaces: (id: number): Promise<SnmpInterface[]> => req(`/snmp/dispositivo/${id}/interfaces`),
+  snmpHistoricoInterface: (id: number, ifIndex: number, minutos: number): Promise<SnmpAmostra[]> =>
+    req(`/snmp/dispositivo/${id}/interfaces/${ifIndex}/historico?minutos=${minutos}`),
+  snmpHistoricoRecursos: (id: number, minutos: number = 60): Promise<SnmpRecursosAmostra[]> =>
+    req(`/snmp/dispositivo/${id}/recursos/historico?minutos=${minutos}`),
+  coletarSnmp: (id: number): Promise<{ ok: boolean; status: string }> =>
+    req(`/snmp/dispositivo/${id}/coletar`, { method: 'POST' }),
 
   topologiaEmpresa: (
     empresaId: number

@@ -12,6 +12,13 @@ export function EditarDispositivoModal({
   const [fabricante, setFabricante] = useState(dispositivo.fabricante);
   const [metodo, setMetodo] = useState(dispositivo.metodo_monitoramento);
   const [comunidade, setComunidade] = useState('');
+  const [snmpVersao, setSnmpVersao] = useState<'v2c' | 'v3'>(dispositivo.snmp_versao || 'v2c');
+  const [snmpUsuario, setSnmpUsuario] = useState(dispositivo.snmp_usuario || '');
+  const [snmpNivel, setSnmpNivel] = useState<'noAuthNoPriv' | 'authNoPriv' | 'authPriv'>('authPriv');
+  const [snmpAuthProto, setSnmpAuthProto] = useState('sha');
+  const [snmpAuthSenha, setSnmpAuthSenha] = useState('');
+  const [snmpPrivProto, setSnmpPrivProto] = useState('aes');
+  const [snmpPrivSenha, setSnmpPrivSenha] = useState('');
   const [porta, setPorta] = useState(dispositivo.porta_snmp);
   const [intervalo, setIntervalo] = useState(dispositivo.intervalo_polling_seg);
   const [ativo, setAtivo] = useState(dispositivo.ativo);
@@ -38,12 +45,25 @@ export function EditarDispositivoModal({
     if (!nome.trim() || !ip.trim()) return;
     setSalvando(true);
     try {
-      const payload: Partial<Dispositivo> & { comunidade_snmp?: string } = {
+      const payload: Partial<Dispositivo> & {
+        comunidade_snmp?: string; snmp_usuario?: string; snmp_nivel?: string;
+        snmp_auth_protocolo?: string; snmp_auth_senha?: string;
+        snmp_priv_protocolo?: string; snmp_priv_senha?: string;
+      } = {
         nome, ip, fabricante,
         metodo_monitoramento: metodo,
         porta_snmp: porta, intervalo_polling_seg: intervalo, ativo,
+        snmp_versao: snmpVersao,
       };
       if (comunidade.trim()) payload.comunidade_snmp = comunidade.trim();
+      if (snmpVersao === 'v3') {
+        payload.snmp_usuario = snmpUsuario.trim();
+        payload.snmp_nivel = snmpNivel;
+        payload.snmp_auth_protocolo = snmpAuthProto;
+        payload.snmp_priv_protocolo = snmpPrivProto;
+        if (snmpAuthSenha.trim()) payload.snmp_auth_senha = snmpAuthSenha.trim();
+        if (snmpPrivSenha.trim()) payload.snmp_priv_senha = snmpPrivSenha.trim();
+      }
       await api.editarDispositivo(dispositivo.id, payload);
       toast.sucesso('Alterações salvas');
       onSalvo();
@@ -78,17 +98,69 @@ export function EditarDispositivoModal({
           </Campo>
           {metodo !== 'ping' && (
             <>
-              <Campo label="Comunidade SNMP">
-                <input
-                  type="password"
-                  value={comunidade}
-                  onChange={(e) => setComunidade(e.target.value)}
-                  className="input"
-                  placeholder={dispositivo.comunidade_snmp_configurada ? 'Deixe vazio para manter a atual' : 'Informe a comunidade'}
-                  maxLength={100}
-                  autoComplete="new-password"
-                />
+              <Campo label="Versão SNMP">
+                <select value={snmpVersao} onChange={(e) => setSnmpVersao(e.target.value as 'v2c' | 'v3')} className="input">
+                  <option value="v2c">v2c (comunidade)</option>
+                  <option value="v3">v3 (usuário/senha)</option>
+                </select>
               </Campo>
+              {snmpVersao === 'v2c' ? (
+                <Campo label="Comunidade SNMP">
+                  <input
+                    type="password"
+                    value={comunidade}
+                    onChange={(e) => setComunidade(e.target.value)}
+                    className="input"
+                    placeholder={dispositivo.comunidade_snmp_configurada ? 'Deixe vazio para manter a atual' : 'Informe a comunidade'}
+                    maxLength={100}
+                    autoComplete="new-password"
+                  />
+                </Campo>
+              ) : (
+                <>
+                  <Campo label="Usuário SNMPv3">
+                    <input value={snmpUsuario} onChange={(e) => setSnmpUsuario(e.target.value)} className="input" maxLength={100} autoComplete="off" />
+                  </Campo>
+                  <Campo label="Nível de segurança">
+                    <select value={snmpNivel} onChange={(e) => setSnmpNivel(e.target.value as any)} className="input">
+                      <option value="authPriv">authPriv (autenticação + criptografia)</option>
+                      <option value="authNoPriv">authNoPriv (só autenticação)</option>
+                      <option value="noAuthNoPriv">noAuthNoPriv</option>
+                    </select>
+                  </Campo>
+                  {snmpNivel !== 'noAuthNoPriv' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Campo label="Protocolo auth">
+                        <select value={snmpAuthProto} onChange={(e) => setSnmpAuthProto(e.target.value)} className="input">
+                          <option value="sha">SHA</option>
+                          <option value="sha256">SHA-256</option>
+                          <option value="sha512">SHA-512</option>
+                          <option value="md5">MD5</option>
+                        </select>
+                      </Campo>
+                      <Campo label="Senha auth">
+                        <input type="password" value={snmpAuthSenha} onChange={(e) => setSnmpAuthSenha(e.target.value)} className="input"
+                          placeholder={dispositivo.snmp_v3_configurado ? 'manter atual' : '••••••'} maxLength={200} autoComplete="new-password" />
+                      </Campo>
+                    </div>
+                  )}
+                  {snmpNivel === 'authPriv' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Campo label="Protocolo priv">
+                        <select value={snmpPrivProto} onChange={(e) => setSnmpPrivProto(e.target.value)} className="input">
+                          <option value="aes">AES-128</option>
+                          <option value="aes256b">AES-256</option>
+                          <option value="des">DES</option>
+                        </select>
+                      </Campo>
+                      <Campo label="Senha priv">
+                        <input type="password" value={snmpPrivSenha} onChange={(e) => setSnmpPrivSenha(e.target.value)} className="input"
+                          placeholder={dispositivo.snmp_v3_configurado ? 'manter atual' : '••••••'} maxLength={200} autoComplete="new-password" />
+                      </Campo>
+                    </div>
+                  )}
+                </>
+              )}
               <Campo label="Porta SNMP"><input type="number" value={porta} onChange={(e) => setPorta(Number(e.target.value))} className="input" min={1} max={65535} /></Campo>
             </>
           )}

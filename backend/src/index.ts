@@ -12,6 +12,7 @@ import { authRouter, definirSocketAuth } from './routes/auth';
 import { criarUsuariosRouter } from './routes/usuarios';
 import { empresasRouter } from './routes/empresas';
 import { criarDispositivosRouter } from './routes/dispositivos';
+import { criarSnmpRouter } from './routes/snmp';
 import { topologiaRouter } from './routes/topologia';
 import { auditoriaRouter } from './routes/auditoria';
 import { alertasRouter } from './routes/alertas';
@@ -29,6 +30,8 @@ import { carregarConfig } from './services/configService';
 import { telegramConfigurado } from './services/telegramService';
 import { iniciarAgendadorResumos } from './services/resumoService';
 import { iniciarServicoSeriesTemporais, pararServicoSeriesTemporais } from './services/pingSeriesService';
+import { iniciarServicoSnmpSeries, pararServicoSnmpSeries } from './services/snmp/series';
+import { iniciarColetaSnmpTodos } from './services/snmp/engine';
 import { carregarUsuarioAutenticado, usuarioPodeAcessarEmpresaAtual } from './middleware/auth';
 import { csrfMiddleware } from './middleware/csrf';
 import { parseCookies, SESSION_COOKIE } from './services/sessionService';
@@ -128,6 +131,7 @@ app.use('/api/usuarios', criarUsuariosRouter(io));
 app.use('/api/empresas', empresasRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/dispositivos', criarDispositivosRouter(io));
+app.use('/api/snmp', criarSnmpRouter(io));
 app.use('/api/topologia', topologiaRouter);
 app.use('/api/auditoria', auditoriaRouter);
 app.use('/api/alertas', alertasRouter);
@@ -296,8 +300,10 @@ server.listen(PORT, BIND_HOST, async () => {
       : 'Alertas Telegram: desativados (configure na tela Usuários ou no .env)'
   );
   iniciarServicoSeriesTemporais();
+  iniciarServicoSnmpSeries();
   await iniciarTodosDispositivos(io);
   await iniciarTodasAntenas(io);
+  await iniciarColetaSnmpTodos(io);
   iniciarAgendadorResumos();
   iniciarRetencaoAuditoria();
 });
@@ -306,7 +312,7 @@ async function encerrarServidor(sinal: string) {
   console.log(`${sinal} recebido; persistindo a fila de ping antes de encerrar.`);
   server.close();
   try {
-    await pararServicoSeriesTemporais();
+    await Promise.allSettled([pararServicoSeriesTemporais(), pararServicoSnmpSeries()]);
   } finally {
     process.exit(0);
   }

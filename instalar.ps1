@@ -53,12 +53,43 @@ if (-not (Test-Path '.env')) {
   Write-Host ".env ja existe - mantendo o atual (nenhum segredo foi sobrescrito)."
 }
 
-# ---- 3. build + subir ----
-Verde "Construindo e subindo os containers (a primeira vez demora alguns minutos)..."
+# ---- 3. checagem de porta (aviso, nao bloqueia) ----
+$portaApp = (Select-String -Path '.env' -Pattern '^APP_PORT=(.+)$' -ErrorAction SilentlyContinue).Matches.Groups[1].Value
+if (-not $portaApp) { $portaApp = '8080' }
+$emUso = Get-NetTCPConnection -LocalPort ([int]$portaApp) -State Listen -ErrorAction SilentlyContinue
+if ($emUso) { Write-Host "AVISO: a porta $portaApp parece ocupada. Se o 'up' falhar, ajuste APP_PORT no .env e rode de novo." -ForegroundColor Yellow }
+
+# ---- 4. subir o Postgres e GARANTIR o schema (inclui a engine SNMP) ----
+# PRESERVACAO DE DADOS: nunca usamos 'down -v' nem removemos volumes; o volume
+# postgres_data persiste. O schema SNMP e aplicado por um arquivo IDEMPOTENTE
+# (CREATE/ALTER ... IF NOT EXISTS), cobrindo instalacao nova e atualizacao, ANTES
+# do backend subir para o motor encontrar o schema pronto.
+function ValorEnv($chave, $padrao) {
+  $m = (Select-String -Path '.env' -Pattern "^$chave=(.+)$" -ErrorAction SilentlyContinue).Matches
+  if ($m -and $m.Groups[1].Value) { return $m.Groups[1].Value } else { return $padrao }
+}
+$pgUser = ValorEnv 'POSTGRES_USER' 'uptimex_owner'
+$pgDb = ValorEnv 'POSTGRES_DB' 'uptimex'
+Verde "Subindo o banco e garantindo o schema (inclui SNMP nativo)..."
+docker compose up -d postgres
+Write-Host 'Aguardando o Postgres' -NoNewline
+$okPg = $false
+for ($i = 0; $i -lt 40; $i++) {
+  docker compose exec -T postgres pg_isready -U $pgUser -d $pgDb *> $null
+  if ($LASTEXITCODE -eq 0) { $okPg = $true; break }
+  Write-Host '.' -NoNewline; Start-Sleep -Seconds 2
+}
+Write-Host ''
+if (-not $okPg) { Falha "Postgres nao ficou pronto em 80s. Veja: docker compose logs postgres" }
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $pgUser -d $pgDb -f /docker-entrypoint-initdb.d/004-snmp.sql *> $null
+if ($LASTEXITCODE -ne 0) { Falha "Falha ao aplicar o schema SNMP (004-snmp.sql). Veja: docker compose logs postgres" }
+Verde "Schema SNMP garantido (idempotente; nenhum dado foi alterado)."
+
+# ---- 5. build + subir backend e frontend ----
+Verde "Construindo e subindo backend e frontend (a primeira vez demora alguns minutos)..."
 docker compose up -d --build
 if ($LASTEXITCODE -ne 0) { Falha "docker compose up falhou - veja as mensagens acima." }
 
-# ---- 4. aguardar o backend (o schema/RLS vem do container Postgres) ----
 Write-Host 'Aguardando backend e banco' -NoNewline
 $ok = $false
 for ($i = 0; $i -lt 60; $i++) {
@@ -69,7 +100,7 @@ for ($i = 0; $i -lt 60; $i++) {
 }
 Write-Host ''
 if (-not $ok) { Falha "Backend nao subiu em 120s. Investigue com: docker compose logs backend" }
-Verde "Backend no ar - schema/RLS criados pelo container Postgres e admin semeado."
+Verde "Backend no ar - schema/RLS/SNMP garantidos e admin semeado."
 
 # ---- 5. dados de uma instalacao MySQL antiga (opcional) ----
 if (Test-Path 'backup-netmonitor.sql') {

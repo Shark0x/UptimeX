@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api, Dispositivo, Empresa, HeartbeatPayload, socket, saudeDispositivo } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
@@ -11,7 +11,18 @@ import { LinksDedicados } from '../components/LinksDedicados';
 import { PingHistoryChart } from '../components/PingHistoryChart';
 import { RelatorioEmpresa } from './RelatorioEmpresa';
 
+// Code-splitting: o dashboard SNMP (gráficos de recursos + tráfego) só entra no
+// bundle quando um dispositivo com SNMP é aberto na aba Status.
+const DeviceSnmpDashboard = lazy(() =>
+  import('../components/DeviceSnmpDashboard').then((m) => ({ default: m.DeviceSnmpDashboard }))
+);
+
 type Aba = 'status' | 'topologia' | 'links' | 'historico';
+
+/** Dispositivo que coleta SNMP (método snmp/snmp+ping, ou com comunidade/v3 configurados). */
+function temSnmp(d: Dispositivo): boolean {
+  return d.metodo_monitoramento !== 'ping' || !!d.comunidade_snmp_configurada || !!d.snmp_v3_configurado;
+}
 
 function Kpi({ rotulo, valor, tom }: { rotulo: string; valor: string | number; tom?: 'offline' | 'warn' | 'online' }) {
   const cor = tom === 'offline' ? 'text-offline' : tom === 'warn' ? 'text-warn' : tom === 'online' ? 'text-online' : 'text-slate-100';
@@ -38,6 +49,8 @@ export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAb
   const [formAberto, setFormAberto] = useState(false);
   const [dispositivoEditando, setDispositivoEditando] = useState<Dispositivo | null>(null);
   const [drawerId, setDrawerId] = useState<number | null>(null);
+  // Detalhe inline na aba Status: SNMP → dashboard de gráficos; ping-only → telemetria (latência/perda).
+  const [detalheId, setDetalheId] = useState<number | null>(null);
   const [relatorioAberto, setRelatorioAberto] = useState(false);
   const [testando, setTestando] = useState(false);
 
@@ -122,6 +135,7 @@ export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAb
 
   // Drawer referencia o objeto vivo da lista — heartbeat atualiza o painel aberto também
   const dispositivoDrawer = drawerId !== null ? dispositivos.find((d) => d.id === drawerId) ?? null : null;
+  const dispositivoDetalhe = detalheId !== null ? dispositivos.find((d) => d.id === detalheId) ?? null : null;
 
   const abas: { id: Aba; label: string }[] = [
     { id: 'status', label: 'Status' },
@@ -205,21 +219,43 @@ export function EmpresaPainel({ empresa, aoVoltar, onVerNoMapa, abaInicial, onAb
 
       <div className="min-h-0 min-w-0 flex-1">
         {aba === 'status' && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3 animate-fade-up">
-            {dispositivos.map((d) => (
-              <StatusCard
-                key={d.id}
-                d={d}
-                onAbrir={() => setDrawerId(d.id)}
-                onEditar={isAdmin ? () => setDispositivoEditando(d) : undefined}
-              />
-            ))}
-            {dispositivos.length === 0 && (
-              <div className="col-span-full glass-panel p-8 text-center">
-                <p className="text-slate-300 font-display">Nenhum dispositivo monitorado ainda.</p>
-                <p className="text-muted text-sm mt-1">
-                  {isAdmin ? 'Cadastre o IP público fixo do cliente pra começar o monitoramento.' : 'Peça a um administrador pra cadastrar o primeiro dispositivo.'}
-                </p>
+          <div className="space-y-4 animate-fade-up">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
+              {dispositivos.map((d) => (
+                <StatusCard
+                  key={d.id}
+                  d={d}
+                  onAbrir={() => setDetalheId(d.id)}
+                  onEditar={isAdmin ? () => setDispositivoEditando(d) : undefined}
+                />
+              ))}
+              {dispositivos.length === 0 && (
+                <div className="col-span-full glass-panel p-8 text-center">
+                  <p className="text-slate-300 font-display">Nenhum dispositivo monitorado ainda.</p>
+                  <p className="text-muted text-sm mt-1">
+                    {isAdmin ? 'Cadastre o IP público fixo do cliente pra começar o monitoramento.' : 'Peça a um administrador pra cadastrar o primeiro dispositivo.'}
+                  </p>
+                </div>
+              )}
+            </div>
+            {dispositivoDetalhe && (
+              <div className="animate-fade-up">
+                <div className="mb-2 flex justify-end">
+                  <button
+                    onClick={() => setDetalheId(null)}
+                    className="font-mono text-[11px] text-muted hover:text-slate-100"
+                    aria-label="Fechar detalhe"
+                  >
+                    ✕ fechar
+                  </button>
+                </div>
+                {temSnmp(dispositivoDetalhe) ? (
+                  <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-white/[0.05] bg-white/[0.02]" />}>
+                    <DeviceSnmpDashboard dispositivo={dispositivoDetalhe} />
+                  </Suspense>
+                ) : (
+                  <PingHistoryChart deviceId={dispositivoDetalhe.id} title={`Conectividade · ${dispositivoDetalhe.nome}`} />
+                )}
               </div>
             )}
           </div>

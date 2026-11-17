@@ -51,11 +51,42 @@ else
   echo ".env ja existe — mantendo o atual (nenhum segredo foi sobrescrito)."
 fi
 
-# ---- 3. build + subir ----
-verde "Construindo e subindo os containers (a primeira vez demora alguns minutos)..."
+# ---- 3. checagem de porta (aviso, nao bloqueia) ----
+PORTA_APP="$(grep -E '^APP_PORT=' .env | cut -d= -f2- || true)"; PORTA_APP="${PORTA_APP:-8080}"
+if command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | grep -q ":${PORTA_APP} "; then
+  echo "AVISO: a porta ${PORTA_APP} parece ocupada. Se o 'up' falhar, ajuste APP_PORT no .env e rode de novo."
+fi
+
+# ---- 4. subir o Postgres e GARANTIR o schema (inclui a engine SNMP) ----
+# PRESERVACAO DE DADOS: este instalador NUNCA usa 'down -v' nem remove volumes.
+# O volume postgres_data persiste entre atualizacoes. O schema SNMP e aplicado por
+# um arquivo IDEMPOTENTE (CREATE/ALTER ... IF NOT EXISTS): em instalacao nova o
+# initdb ja o rodou e a reaplicacao e no-op; numa instalacao existente ele cria as
+# tabelas novas sem tocar em nada que ja existe. Rodamos ANTES do backend para o
+# motor subir com o schema pronto.
+PG_USER="$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2- || true)"; PG_USER="${PG_USER:-uptimex_owner}"
+PG_DB="$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2- || true)"; PG_DB="${PG_DB:-uptimex}"
+verde "Subindo o banco e garantindo o schema (inclui SNMP nativo)..."
+docker compose up -d postgres
+printf 'Aguardando o Postgres'
+ok_pg=""
+for i in $(seq 1 40); do
+  if docker compose exec -T postgres pg_isready -U "$PG_USER" -d "$PG_DB" >/dev/null 2>&1; then ok_pg=1; break; fi
+  printf '.'; sleep 2
+done
+echo
+[ -n "$ok_pg" ] || falha "Postgres nao ficou pronto em 80s. Veja: docker compose logs postgres"
+if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" \
+     -f /docker-entrypoint-initdb.d/004-snmp.sql >/dev/null 2>&1; then
+  verde "Schema SNMP garantido (idempotente; nenhum dado foi alterado)."
+else
+  falha "Falha ao aplicar o schema SNMP (004-snmp.sql). Veja: docker compose logs postgres"
+fi
+
+# ---- 5. build + subir backend e frontend ----
+verde "Construindo e subindo backend e frontend (a primeira vez demora alguns minutos)..."
 docker compose up -d --build
 
-# ---- 4. aguardar o backend (o schema/RLS vem do container Postgres) ----
 printf 'Aguardando backend e banco'
 ok=""
 for i in $(seq 1 60); do
@@ -64,7 +95,7 @@ for i in $(seq 1 60); do
 done
 echo
 [ -n "$ok" ] || falha "Backend nao subiu em 120s. Investigue com: docker compose logs backend"
-verde "Backend no ar — schema/RLS criados pelo container Postgres e admin semeado."
+verde "Backend no ar — schema/RLS/SNMP garantidos e admin semeado."
 
 # ---- 5. dados de uma instalacao MySQL antiga (opcional) ----
 if [ -f backup-netmonitor.sql ]; then

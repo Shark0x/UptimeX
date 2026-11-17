@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { APP_VERSION_ROTULO } from '../version';
 import { TrocarSenhaModal } from './TrocarSenhaModal';
 import { Novidades } from './Novidades';
+import { AgenteDownloads } from './AgenteDownloads';
 import { temNovidade, marcarNovidadesVistas } from '../lib/novidades';
 import { useToast } from './Toast';
 import { TEMAS, Tema, useTema } from '../theme/ThemeContext';
@@ -79,6 +80,7 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
   const idxTema = Math.max(0, TEMAS.findIndex((t) => t.id === tema));
   const [aberto, setAberto] = useState(false);
   const [senhaAberta, setSenhaAberta] = useState(false);
+  const [agenteAberto, setAgenteAberto] = useState(false);
   const [novidadesAberta, setNovidadesAberta] = useState(false);
   const [temNova, setTemNova] = useState(() => temNovidade());
   const [enviando, setEnviando] = useState(false);
@@ -171,6 +173,10 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="p-1.5">
+            <button role="menuitem" onClick={() => { setAberto(false); setAgenteAberto(true); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-white/[0.06] transition-colors flex items-center gap-2.5">
+              <img src="/favicon.svg" alt="" className="w-4 h-4" />
+              Agente uptimeX
+            </button>
             <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={aoEscolherArquivo} />
             <button
               onClick={() => inputRef.current?.click()}
@@ -253,6 +259,7 @@ export function PerfilMenu({ onLogout }: { onLogout: () => void }) {
       )}
 
       {senhaAberta && <TrocarSenhaModal onClose={() => setSenhaAberta(false)} />}
+      {agenteAberto && <AgenteDownloads onClose={() => setAgenteAberto(false)} />}
       {novidadesAberta && <Novidades onClose={fecharNovidades} />}
     </div>
   );

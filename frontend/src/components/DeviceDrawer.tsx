@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   api, Dispositivo, LIMIAR_PERDA_PCT, StatusEvento, saudeDispositivo,
 } from '../api';
 import { iconePorTipo } from './NetIcons';
 import { PingHistoryChart } from './PingHistoryChart';
+
+// Code-splitting: o painel SNMP (gráficos de tráfego + tabela de interfaces) só
+// entra no bundle quando um dispositivo com SNMP é aberto no drawer.
+const PainelSnmp = lazy(() => import('./PainelSnmp').then((m) => ({ default: m.PainelSnmp })));
 
 function formatarDuracao(seg: number): string {
   if (seg < 60) return `${Math.max(seg, 0)}s`;
@@ -135,6 +139,14 @@ export function DeviceDrawer({
           title="Histórico do dispositivo"
           compact
         />
+
+        {(dispositivo.metodo_monitoramento !== 'ping'
+          || dispositivo.comunidade_snmp_configurada
+          || dispositivo.snmp_v3_configurado) && (
+          <Suspense fallback={<div className="h-28 animate-pulse rounded-2xl border border-white/[0.05] bg-white/[0.02]" />}>
+            <PainelSnmp dispositivoId={dispositivo.id} />
+          </Suspense>
+        )}
 
         {/* resumo de eventos */}
         <div className="grid grid-cols-2 gap-2.5">

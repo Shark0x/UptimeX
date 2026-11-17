@@ -70,15 +70,26 @@ docker compose exec -T postgres \
   pg_dump -U uptimex_owner -d uptimex > backup-uptimex.sql
 ```
 
-Then update and validate:
+Then update and validate. The schema step is idempotent: it adds the SNMP tables on
+an existing install and is a no-op on a fresh one, and it never deletes data. Run it
+before starting the new backend so the monitoring engine finds the schema ready.
 
 ```bash
 git pull --ff-only
 docker compose build backend frontend
+# 1) bring the database up and ensure the schema (SNMP native engine included)
+docker compose up -d --wait postgres
+docker compose exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U uptimex_owner -d uptimex \
+  -f /docker-entrypoint-initdb.d/004-snmp.sql
+# 2) start the new backend and frontend
 docker compose up -d --wait backend
 docker compose up -d --wait frontend
 docker compose ps
 ```
+
+> The automatic installer (`instalar.sh` / `instalar.ps1`) performs these same steps for you,
+> including the idempotent schema apply, and never removes volumes.
 
 Check the public health endpoint through the frontend port:
 
@@ -167,6 +178,52 @@ Back up the uploads volume separately. A database dump does not contain company 
 | Update images from source | `docker compose up -d --build --wait` |
 
 Never use `docker compose down -v` during normal operations because `-v` removes the persistent database and upload volumes.
+
+## SNMP native engine
+
+The backend polls routers, switches, OLTs and radios over SNMP directly — no Zabbix,
+no external collector. It runs alongside the ICMP engine: a device **without** SNMP
+credentials keeps being monitored by ping exactly as before (hybrid monitoring).
+
+What it collects per device (MVP):
+
+- `sysUpTime`, `sysDescr`, `sysName` (system uptime and host info);
+- interface discovery and operational status (up/down) from `ifTable` / `ifXTable`;
+- inbound/outbound traffic in bps/Mbps/Gbps from `ifHCInOctets` / `ifHCOutOctets`
+  (64-bit counters, essential on Gigabit+ links), falling back to the 32-bit
+  counters and correcting their wraparound;
+- interface errors and discards when the device exposes them.
+
+Counters are converted to rates by subtracting sequential readings over the elapsed
+time. The engine handles counter wraparound, device reboots (detected via `sysUpTime`)
+and missed samples, discarding readings it cannot trust instead of emitting a false
+spike. The previous reading of every interface is persisted in the database, so rate
+calculation survives a backend restart.
+
+**Configuring a device.** Edit the device and pick the SNMP version:
+
+- **v2c** — enter the community string (stored encrypted with `DATA_ENCRYPTION_KEY`).
+- **v3** — enter the user, security level (`authPriv` / `authNoPriv` / `noAuthNoPriv`),
+  auth protocol/password and priv protocol/password. Auth/priv passwords are stored
+  encrypted. For status via SNMP use v2c; with v3, keep the method as `snmp+ping` or
+  `ping` so ICMP handles up/down while v3 feeds traffic metrics.
+
+Interfaces, live traffic charts, system uptime and a **“collection delayed”** badge
+appear in the device drawer. Operators can force an immediate read with **“Coletar agora”**.
+
+Relevant environment variables (all optional, with safe defaults):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SNMP_ALLOWED_PORTS` | `161` | Allowed SNMP destination ports |
+| `SNMP_MAX_CONCURRENCY` | `10` | Max devices polled over SNMP at once (protects the event loop) |
+| `SNMP_RAW_RETENTION_DAYS` | `15` | Retention of raw traffic samples |
+| `SNMP_LOG_BATCH_SIZE` / `SNMP_LOG_FLUSH_MS` | `200` / `5000` | Sample batching into the database |
+
+The SNMP collection interval reuses each device’s `intervalo_polling_seg` (minimum 10s).
+
+> Encrypted SNMP communities require the **same** `DATA_ENCRYPTION_KEY` that encrypted
+> them. If the key was rotated, re-enter the credentials in the device form.
 
 ## Runtime security model
 

@@ -3,12 +3,41 @@ import { Server as SocketServer } from 'socket.io';
 import { pool } from '../db/pool';
 import { registrarAuditoria } from '../services/auditService';
 import { iniciarMonitoramento, pararMonitoramento, verificarAgora } from '../services/monitorEngine';
+import { iniciarColetaSnmp, pararColetaSnmp } from '../services/snmp/engine';
 import { limparAlertas } from '../services/alertaService';
 import { authMiddleware, requireEmpresaParam, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { criarDispositivoSchema, editarDispositivoSchema } from '../validation/schemas';
 import { filtroEmpresaSql, normalizarIdPositivo, podeAcessarEmpresa, podeOperarTenant } from '../security/tenantAccess';
 import { criptografarSegredo } from '../security/secretCrypto';
+
+// Credenciais SNMPv3 vindas do body → valores de coluna, cifrando as senhas
+// auth/priv (mesmo cofre AES-GCM da comunidade v2c). Em v2c, zera os campos v3.
+// Mantém a senha anterior quando o campo vem vazio (não re-enviado pelo form).
+interface SnmpV3Anterior {
+  snmp_auth_senha?: string | null;
+  snmp_priv_senha?: string | null;
+}
+function prepararSnmpV3(body: any, anterior?: SnmpV3Anterior) {
+  const versao: 'v2c' | 'v3' = body.snmp_versao === 'v3' ? 'v3' : 'v2c';
+  if (versao !== 'v3') {
+    return { versao, usuario: null, nivel: null, authProto: null, authSenha: null, privProto: null, privSenha: null };
+  }
+  const nivel = body.snmp_nivel || 'authPriv';
+  const cifrarOuManter = (valor: unknown, anteriorVal: string | null | undefined) =>
+    typeof valor === 'string' && valor !== '' ? criptografarSegredo(valor) : (anteriorVal ?? null);
+  const comAuth = nivel === 'authNoPriv' || nivel === 'authPriv';
+  const comPriv = nivel === 'authPriv';
+  return {
+    versao,
+    usuario: String(body.snmp_usuario || '').trim() || null,
+    nivel,
+    authProto: comAuth ? (body.snmp_auth_protocolo || 'sha') : null,
+    authSenha: comAuth ? cifrarOuManter(body.snmp_auth_senha, anterior?.snmp_auth_senha) : null,
+    privProto: comPriv ? (body.snmp_priv_protocolo || 'aes') : null,
+    privSenha: comPriv ? cifrarOuManter(body.snmp_priv_senha, anterior?.snmp_priv_senha) : null,
+  };
+}
 
 export function criarDispositivosRouter(io: SocketServer) {
   const router = Router();
@@ -21,8 +50,9 @@ export function criarDispositivosRouter(io: SocketServer) {
     const [rows] = await pool.query(
       `SELECT id, empresa_id, nome, ip, fabricante, metodo_monitoramento,
               porta_snmp, intervalo_polling_seg, status_atual, ultima_verificacao,
-              latencia_ms, perda_pct, ativo, criado_em,
-              (comunidade_snmp IS NOT NULL AND comunidade_snmp <> '') AS comunidade_snmp_configurada
+              latencia_ms, perda_pct, ativo, criado_em, snmp_versao, snmp_usuario,
+              (comunidade_snmp IS NOT NULL AND comunidade_snmp <> '') AS comunidade_snmp_configurada,
+              (snmp_versao = 'v3' AND snmp_usuario IS NOT NULL AND snmp_usuario <> '') AS snmp_v3_configurado
        FROM dispositivos WHERE empresa_id = ? ORDER BY nome`,
       [req.params.empresaId]
     );
@@ -155,14 +185,20 @@ export function criarDispositivosRouter(io: SocketServer) {
     if (empresas.length === 0) return res.status(404).json({ erro: 'Empresa não encontrada' });
 
     const metodo = metodo_monitoramento || 'snmp+ping';
-    if (metodo !== 'ping' && !comunidade_snmp?.trim()) {
-      return res.status(400).json({ erro: 'Informe a comunidade SNMP para este metodo de monitoramento.' });
+    const v3 = prepararSnmpV3(req.body);
+    if (v3.versao === 'v3' && !v3.usuario) {
+      return res.status(400).json({ erro: 'Informe o usuario SNMPv3.' });
+    }
+    const temSnmp = !!comunidade_snmp?.trim() || (v3.versao === 'v3' && !!v3.usuario);
+    if (metodo !== 'ping' && !temSnmp) {
+      return res.status(400).json({ erro: 'Informe a comunidade SNMP (v2c) ou o usuario (v3) para este metodo.' });
     }
 
     const [result]: any = await pool.query(
       `INSERT INTO dispositivos
-        (empresa_id, nome, ip, fabricante, metodo_monitoramento, comunidade_snmp, porta_snmp, intervalo_polling_seg)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (empresa_id, nome, ip, fabricante, metodo_monitoramento, comunidade_snmp, porta_snmp, intervalo_polling_seg,
+         snmp_versao, snmp_usuario, snmp_nivel, snmp_auth_protocolo, snmp_auth_senha, snmp_priv_protocolo, snmp_priv_senha)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
       [
         empresaId, nome, ip,
@@ -171,11 +207,13 @@ export function criarDispositivosRouter(io: SocketServer) {
         comunidade_snmp?.trim() ? criptografarSegredo(comunidade_snmp.trim()) : null,
         porta_snmp || 161,
         intervalo_polling_seg || 30,
+        v3.versao, v3.usuario, v3.nivel, v3.authProto, v3.authSenha, v3.privProto, v3.privSenha,
       ]
     );
 
     const novoId = Number(result[0].id);
     iniciarMonitoramento(novoId, io);
+    iniciarColetaSnmp(novoId, io); // coleta de métricas (auto-para se não houver credencial)
     await registrarAuditoria(
       req.user!.username,
       'criar',
@@ -193,7 +231,8 @@ export function criarDispositivosRouter(io: SocketServer) {
     if (!dispositivoId) return res.status(400).json({ erro: 'Dispositivo inválido' });
     const escopo = filtroEmpresaSql(req.user!, 'd.empresa_id');
     const [dispositivos]: any = await pool.query(
-      `SELECT d.id, d.empresa_id, d.comunidade_snmp FROM dispositivos d WHERE d.id = ? AND ${escopo.sql}`,
+      `SELECT d.id, d.empresa_id, d.comunidade_snmp, d.snmp_auth_senha, d.snmp_priv_senha
+       FROM dispositivos d WHERE d.id = ? AND ${escopo.sql}`,
       [dispositivoId, ...escopo.params]
     );
     if (dispositivos.length === 0) return res.status(404).json({ erro: 'Dispositivo não encontrado' });
@@ -210,25 +249,38 @@ export function criarDispositivosRouter(io: SocketServer) {
     if (typeof comunidade_snmp === 'string' && comunidade_snmp.trim() !== '') {
       comunidadeProtegida = criptografarSegredo(comunidade_snmp.trim());
     }
-    if (metodo_monitoramento !== 'ping' && !comunidadeProtegida) {
-      return res.status(400).json({ erro: 'Informe a comunidade SNMP para este metodo de monitoramento.' });
+    const v3 = prepararSnmpV3(req.body, {
+      snmp_auth_senha: dispositivos[0].snmp_auth_senha,
+      snmp_priv_senha: dispositivos[0].snmp_priv_senha,
+    });
+    if (v3.versao === 'v3' && !v3.usuario) {
+      return res.status(400).json({ erro: 'Informe o usuario SNMPv3.' });
+    }
+    const temSnmp = !!comunidadeProtegida || (v3.versao === 'v3' && !!v3.usuario);
+    if (metodo_monitoramento !== 'ping' && !temSnmp) {
+      return res.status(400).json({ erro: 'Informe a comunidade SNMP (v2c) ou o usuario (v3) para este metodo.' });
     }
 
     await pool.query(
       `UPDATE dispositivos SET nome=?, ip=?, fabricante=?, metodo_monitoramento=?,
-        comunidade_snmp=?, porta_snmp=?, intervalo_polling_seg=?, ativo=?
+        comunidade_snmp=?, porta_snmp=?, intervalo_polling_seg=?, ativo=?,
+        snmp_versao=?, snmp_usuario=?, snmp_nivel=?, snmp_auth_protocolo=?,
+        snmp_auth_senha=?, snmp_priv_protocolo=?, snmp_priv_senha=?
        WHERE id=? AND empresa_id=?`,
       [
         nome, ip, fabricante, metodo_monitoramento, comunidadeProtegida,
         porta_snmp, intervalo_polling_seg, ativo ?? true,
+        v3.versao, v3.usuario, v3.nivel, v3.authProto, v3.authSenha, v3.privProto, v3.privSenha,
         dispositivoId, dispositivos[0].empresa_id,
       ]
     );
 
     if (ativo !== false) {
       iniciarMonitoramento(dispositivoId, io);
+      iniciarColetaSnmp(dispositivoId, io);
     } else {
       pararMonitoramento(dispositivoId);
+      pararColetaSnmp(dispositivoId);
       limparAlertas(dispositivoId);
     }
 
@@ -254,6 +306,7 @@ export function criarDispositivosRouter(io: SocketServer) {
     if (dispositivos.length === 0) return res.status(404).json({ erro: 'Dispositivo não encontrado' });
 
     pararMonitoramento(dispositivoId);
+    pararColetaSnmp(dispositivoId);
     limparAlertas(dispositivoId);
     await pool.query(`DELETE FROM dispositivos WHERE id = ? AND empresa_id = ?`, [
       dispositivoId,

@@ -20,6 +20,13 @@ uptimeX combines availability monitoring, latency and packet-loss history, inter
 
 ## Recommended installation: automatic Docker setup
 
+To prepare a monitored server with the separate Python SNMP agent, see
+[the agent installer](agent-installer/README.md). The uptimeX profile menu includes
+**Agente uptimeX** with Windows and Linux downloads when packages have been built
+and published. Build the packages before building the frontend image; Windows
+currently provides the graphical preview, while automatic agent installation is
+limited to supported Linux environments.
+
 Requirements:
 
 - Git

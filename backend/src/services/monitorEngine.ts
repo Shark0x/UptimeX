@@ -10,6 +10,7 @@ import {
   descriptografarSegredo,
 } from '../security/secretCrypto';
 import { exigirDestinoMonitoramento } from '../security/monitorTarget';
+import { criarMutexPorChave } from './concurrency';
 
 interface Dispositivo {
   id: number;
@@ -33,6 +34,13 @@ interface ResultadoVerificacao {
 
 // Timers ativos por dispositivo, pra podermos parar/reiniciar quando o intervalo muda
 const timers = new Map<number, NodeJS.Timeout>();
+// Geração por dispositivo: iniciar/parar incrementa o número; um ciclo em voo com
+// geração obsoleta não reagenda. Elimina loops de polling concorrentes quando o
+// dispositivo é editado (reinicia o monitoramento) ou o serviço é reiniciado.
+const geracao = new Map<number, number>();
+// Mutex por dispositivo: a coleta agendada e a verificação manual (verificarAgora)
+// do MESMO dispositivo nunca rodam sobrepostas.
+const mutexDispositivo = criarMutexPorChave<number>();
 
 async function verificarStatus(d: Dispositivo): Promise<ResultadoVerificacao> {
   exigirDestinoMonitoramento(d.ip);
@@ -146,29 +154,51 @@ async function processarResultado(d: Dispositivo, r: ResultadoVerificacao, io: S
   }
 }
 
-async function ciclo(dispositivoId: number, io: SocketServer) {
-  const [rows]: any = await workerQuery(`SELECT * FROM dispositivos WHERE id = ? AND ativo = TRUE`, [dispositivoId]);
-  if (rows.length === 0) {
-    pararMonitoramento(dispositivoId);
-    limparAlertas(dispositivoId);
-    return;
-  }
-  const d: Dispositivo = rows[0];
-
+async function ciclo(dispositivoId: number, io: SocketServer, g: number) {
+  let intervaloMs = 30_000;
+  let reagendavel = true;
   try {
-    const resultado = await verificarStatus(d);
-    await processarResultado(d, resultado, io);
-  } catch (err) {
-    console.error(`Erro ao verificar dispositivo id=${d.id}:`, err instanceof Error ? err.message : err);
-  }
+    // A consulta inicial fica DENTRO do try/finally: um timeout ou hiccup do banco
+    // nunca pode impedir o reagendamento do próximo ciclo.
+    const [rows]: any = await workerQuery(`SELECT * FROM dispositivos WHERE id = ? AND ativo = TRUE`, [dispositivoId]);
+    if (rows.length === 0) {
+      pararMonitoramento(dispositivoId);
+      limparAlertas(dispositivoId);
+      reagendavel = false;
+      return;
+    }
+    const d: Dispositivo = rows[0];
+    intervaloMs = (Number(d.intervalo_polling_seg) || 30) * 1000;
 
-  const timer = setTimeout(() => ciclo(dispositivoId, io), d.intervalo_polling_seg * 1000);
+    await mutexDispositivo(dispositivoId, async () => {
+      try {
+        const resultado = await verificarStatus(d);
+        await processarResultado(d, resultado, io);
+      } catch (err) {
+        console.error(`Erro ao verificar dispositivo id=${d.id}:`, err instanceof Error ? err.message : err);
+      }
+    });
+  } catch (err) {
+    // Falha ao LER o dispositivo (banco indisponível, etc.). Loga e segue para o
+    // reagendamento — o ciclo não pode morrer por um erro transitório.
+    console.error(`Erro ao carregar dispositivo id=${dispositivoId} para o ciclo:`, err instanceof Error ? err.message : err);
+  } finally {
+    if (reagendavel) reagendarCiclo(dispositivoId, io, g, intervaloMs);
+  }
+}
+
+function reagendarCiclo(dispositivoId: number, io: SocketServer, g: number, ms: number) {
+  // Só reagenda se ESTA geração ainda é a vigente. Após um iniciar/parar mais
+  // recente, o ciclo em voo (geração antiga) não cria um timer duplicado.
+  if (geracao.get(dispositivoId) !== g) return;
+  const timer = setTimeout(() => ciclo(dispositivoId, io, g), ms);
   timers.set(dispositivoId, timer);
 }
 
 export function iniciarMonitoramento(dispositivoId: number, io: SocketServer) {
-  pararMonitoramento(dispositivoId);
-  ciclo(dispositivoId, io);
+  pararMonitoramento(dispositivoId); // incrementa a geração e limpa o timer vigente
+  const g = geracao.get(dispositivoId)!;
+  void ciclo(dispositivoId, io, g);
 }
 
 /**
@@ -185,9 +215,12 @@ export async function verificarAgora(
   const [rows]: any = await workerQuery(`SELECT * FROM dispositivos WHERE id = ? AND ativo = TRUE`, [dispositivoId]);
   if (rows.length === 0) return null;
   const d: Dispositivo = rows[0];
-  const resultado = await verificarStatus(d);
-  await processarResultado(d, resultado, io);
-  return resultado;
+  // Serializa com o ciclo agendado: o diagnóstico manual não sobrepõe uma coleta.
+  return mutexDispositivo(dispositivoId, async () => {
+    const resultado = await verificarStatus(d);
+    await processarResultado(d, resultado, io);
+    return resultado;
+  });
 }
 
 // Nota: NÃO limpa o rastreio de alertas aqui — editar um dispositivo reinicia o
@@ -199,6 +232,9 @@ export function pararMonitoramento(dispositivoId: number) {
     clearTimeout(t);
     timers.delete(dispositivoId);
   }
+  // Invalida qualquer ciclo em voo deste dispositivo: a geração muda, então o
+  // reagendamento do ciclo antigo vira no-op (sem timers duplicados).
+  geracao.set(dispositivoId, (geracao.get(dispositivoId) || 0) + 1);
 }
 
 /** Inicializa o motor pra todos os dispositivos ativos no banco (chamado no boot do servidor) */

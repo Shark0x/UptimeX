@@ -94,6 +94,11 @@ services:
       # seguem bloqueados pelo guard. Para restringir, defina MONITOR_ALLOWED_CIDRS no .env.
       MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-0.0.0.0/0}
       SNMP_ALLOWED_PORTS: ${SNMP_ALLOWED_PORTS:-161}
+      # Engine SNMP nativa: concorrência do polling e retenção da série de tráfego.
+      SNMP_MAX_CONCURRENCY: ${SNMP_MAX_CONCURRENCY:-10}
+      SNMP_RAW_RETENTION_DAYS: ${SNMP_RAW_RETENTION_DAYS:-15}
+      SNMP_LOG_BATCH_SIZE: ${SNMP_LOG_BATCH_SIZE:-200}
+      SNMP_LOG_FLUSH_MS: ${SNMP_LOG_FLUSH_MS:-5000}
       ALLOW_PRIVATE_DEV_ORIGINS: "false"
       EXTERNAL_GEOCODING_ENABLED: ${EXTERNAL_GEOCODING_ENABLED:-false}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?defina SEED_ADMIN_PASSWORD no arquivo .env}
