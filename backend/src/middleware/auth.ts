@@ -20,6 +20,16 @@ export async function usuarioPodeAcessarEmpresaAtual(usuarioId: number, empresaI
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  return autenticar(req, res, next, true);
+}
+
+// Proxies externos autenticados nao consultam dados de tenant e nao precisam
+// reter uma conexao/transacao enquanto aguardam a rede externa.
+export async function authSemTransacao(req: Request, res: Response, next: NextFunction) {
+  return autenticar(req, res, next, false);
+}
+
+async function autenticar(req: Request, res: Response, next: NextFunction, usarRls: boolean) {
   const header = req.headers.authorization;
   const cookieToken = tokenSessaoDaRequisicao(req);
   const bearerToken = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
@@ -34,7 +44,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   // A partir daqui a requisicao roda numa transacao com app.user_id definido;
   // toda pool.query do handler herda o contexto RLS. Erros de infra (conexao/BEGIN)
   // propagam via next(err) — nao viram 401.
-  return comContextoRls(req.user.id, req, res, next);
+  if (req.destroyed || res.destroyed) return;
+  return usarRls ? comContextoRls(req.user.id, req, res, next) : next();
 }
 
 export async function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction) {

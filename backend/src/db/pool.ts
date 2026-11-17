@@ -204,6 +204,10 @@ export async function comContextoRls(
   } catch (err) {
     return next(err as Error);
   }
+  if (req.destroyed || res.destroyed) {
+    client.release();
+    return;
+  }
   const store: RlsStore = { client, tail: Promise.resolve() };
   let finalizado = false;
   let timer: NodeJS.Timeout | undefined;
@@ -252,6 +256,10 @@ export async function comContextoRls(
     return next(err as Error);
   }
   client.on('error', aoErroCliente);
+  if (req.destroyed || res.destroyed) {
+    finalizar(false);
+    return;
+  }
   res.once('finish', aoFinalizarResposta);
   res.once('close', aoFecharResposta);
   req.once('aborted', aoAbortarRequisicao);

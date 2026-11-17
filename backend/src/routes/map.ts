@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { authMiddleware, requireRole } from '../middleware/auth';
+import { authSemTransacao, requireRole } from '../middleware/auth';
 
 export const mapRouter = Router();
-mapRouter.use(authMiddleware);
+mapRouter.use(authSemTransacao);
 
 mapRouter.get('/geocode', requireRole('admin'), async (req, res) => {
   const consulta = String(req.query.q || '').trim();
